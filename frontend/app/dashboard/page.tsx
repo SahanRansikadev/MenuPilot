@@ -23,11 +23,13 @@ import {
   Soup,
   Sun,
   Utensils,
+  Users,
   X,
 } from "lucide-react";
 
 const navigation = [
   { label: "Overview", href: "#overview", Icon: LayoutDashboard },
+  { label: "Guests", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "#upcoming", Icon: CalendarDays },
   { label: "Meal planner", href: "#meal-plan", Icon: Utensils },
   { label: "Recent activity", href: "#activity", Icon: ClipboardList },
