@@ -24,4 +24,10 @@ test("serves health checks and rejects invalid sign-up payloads", async (t) => {
   });
   assert.equal(signUpResponse.status, 400);
   assert.equal(typeof (await signUpResponse.json()).error, "string");
+
+  const sessionResponse = await fetch(`${baseUrl}/api/auth/me`);
+  assert.equal(sessionResponse.status, 401);
+
+  const logoutResponse = await fetch(`${baseUrl}/api/auth/logout`, { method: "POST" });
+  assert.equal(logoutResponse.status, 200);
 });

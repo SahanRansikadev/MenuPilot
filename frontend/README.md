@@ -23,9 +23,9 @@ npm run dev
 Open http://localhost:3000
 
 ## Authentication
-The frontend is a Next.js client and sends sign-up/sign-in requests to the separate Node.js API in `../backend`. Copy `.env.example` to `.env.local`; set `NEXT_PUBLIC_API_URL` to the backend API URL (default `http://localhost:5000/api`). Start the backend separately and configure its MongoDB connection in `backend/.env`; see [backend/README.md](../backend/README.md). Passwords are hashed before storage, and successful authentication sets an HTTP-only session cookie. Contact details and the contact form are still placeholders. Photography loads from Unsplash URLs, so internet access is needed for images.
+The frontend is a Next.js client and sends authentication requests to the separate Node.js API in `../backend`. Copy `.env.example` to `.env.local`; set `NEXT_PUBLIC_API_URL` to the backend API URL (default `http://localhost:5000/api`). Start the backend separately and configure its MongoDB connection in `backend/.env`; see [backend/README.md](../backend/README.md). The dashboard loads the signed-in user's name and email from the API, and sign-out revokes the server session. Passwords are hashed before storage, and authentication uses an HTTP-only session cookie. Contact details and the contact form are still placeholders. Photography loads from Unsplash URLs, so internet access is needed for images.
 
-The frontend authentication forms call `POST /api/auth/signup` with `{ "name": "...", "email": "...", "password": "..." }` or `POST /api/auth/signin` with `{ "email": "...", "password": "..." }` on the backend.
+The frontend uses `POST /api/auth/signup` with `{ "name": "...", "email": "...", "password": "..." }`, `POST /api/auth/signin` with `{ "email": "...", "password": "..." }`, `GET /api/auth/me` for the current user's details, and `POST /api/auth/logout` to sign out.
 
 ## GitHub
 Extract this ZIP and upload its files/folders to your repository's `main` branch. Do not upload `node_modules` or `.next`.

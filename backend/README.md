@@ -16,6 +16,8 @@ The API listens on port `5000` by default. Set `FRONTEND_URL` to the frontend or
 
 - `POST /api/auth/signup` — `{ "name": "...", "email": "...", "password": "..." }`
 - `POST /api/auth/signin` — `{ "email": "...", "password": "..." }`
+- `GET /api/auth/me` — returns the authenticated user's name and email
+- `POST /api/auth/logout` — revokes the session and clears its cookie
 - `GET /api/health` — API health status
 
 Authentication responses set an HTTP-only session cookie. Passwords are hashed with bcrypt; only hashes of session tokens are stored in the database.
