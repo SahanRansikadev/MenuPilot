@@ -17,6 +17,10 @@ const expectedHealth = {
   message: "MenuPilot Backend is running",
   status: "OK",
 };
+const expectedRoot = {
+  status: "ok",
+  message: "MenuPilot Backend is running!",
+};
 
 test("serves health checks and rejects invalid sign-up payloads", async (t) => {
   const server = app.listen(0);
@@ -28,6 +32,12 @@ test("serves health checks and rejects invalid sign-up payloads", async (t) => {
   assert.equal(typeof address, "object");
 
   const baseUrl = `http://127.0.0.1:${address.port}`;
+  const rootResponse = await fetch(baseUrl, {
+    headers: { Origin: "https://frontend.example" },
+  });
+  assert.equal(rootResponse.status, 200);
+  assert.deepEqual(await rootResponse.json(), expectedRoot);
+
   const healthResponse = await fetch(`${baseUrl}/api/health`, {
     headers: { Origin: "https://frontend.example" },
   });
@@ -54,6 +64,10 @@ test("serves health checks and rejects invalid sign-up payloads", async (t) => {
 
   const logoutResponse = await fetch(`${baseUrl}/api/auth/logout`, { method: "POST" });
   assert.equal(logoutResponse.status, 200);
+
+  const notFoundResponse = await fetch(`${baseUrl}/api/not-a-route`);
+  assert.equal(notFoundResponse.status, 404);
+  assert.deepEqual(await notFoundResponse.json(), { error: "Not found." });
 });
 
 test("serves the health check through Vercel without requiring MongoDB", async (t) => {
@@ -78,4 +92,22 @@ test("serves the health check through Vercel without requiring MongoDB", async (
   const response = await fetch(`http://127.0.0.1:${address.port}/api/health`);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), expectedHealth);
+
+  const rootResponse = await fetch(`http://127.0.0.1:${address.port}/`);
+  assert.equal(rootResponse.status, 200);
+  assert.deepEqual(await rootResponse.json(), expectedRoot);
+
+  const preflightResponse = await fetch(`http://127.0.0.1:${address.port}/api/auth/signin`, {
+    method: "OPTIONS",
+    headers: {
+      Origin: "https://frontend.example",
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "content-type",
+    },
+  });
+  assert.equal(preflightResponse.status, 204);
+  assert.equal(
+    preflightResponse.headers.get("access-control-allow-origin"),
+    "https://frontend.example",
+  );
 });

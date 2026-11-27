@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowUpRight, Menu, X, Utensils, ChefHat, CalendarDays, ClipboardCheck, Users, ChartNoAxesCombined, Sparkles, Mail, Phone, MapPin, Instagram, Facebook, Linkedin, CheckCircle2, ChevronLeft, ChevronRight, Flame, Coffee, Soup, PartyPopper } from "lucide-react";
+import { API_BASE_URL } from "../lib/api";
 
 const slides = [
  { kicker:"FOOD · PEOPLE · EXPERIENCES", title:"Every gathering deserves a", accent:"beautiful menu.", copy:"From a relaxed breakfast to a grand celebration, bring every food detail together in one simple place.", image:"https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=2000&q=88", alt:"Grilled food prepared for a gathering", caption:"Thoughtfully planned. Beautifully served." },
@@ -22,8 +23,6 @@ const occasions = [
  ["FIRE UP THE FUN","BBQ celebrations","Bring people together over the grill.","https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&w=900&q=85",Flame],
  ["MAKE IT SPECIAL","Events & functions","Thoughtful menus for life's big days.","https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=85",PartyPopper]
 ] as const;
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
 export default function Home() {
  const router=useRouter();
  const [slideIndex,setSlideIndex]=useState(0), [mobile,setMobile]=useState(false), [sent,setSent]=useState(false), [authMode,setAuthMode]=useState<"signin"|"signup"|null>(null), [authMessage,setAuthMessage]=useState(""), [authLoading,setAuthLoading]=useState(false);

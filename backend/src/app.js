@@ -5,7 +5,10 @@ const connectToDatabase = require("./config/database");
 const serverlessApp = express();
 
 serverlessApp.use(async (req, res, next) => {
-  if (req.method === "GET" && req.path === "/api/health") {
+  if (
+    req.method === "OPTIONS" ||
+    (req.method === "GET" && (req.path === "/" || req.path === "/api/health"))
+  ) {
     return next();
   }
 
