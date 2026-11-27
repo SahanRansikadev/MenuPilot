@@ -29,8 +29,8 @@ export default function Home() {
  return <main>
   <header className="header">
    <a className="brand" href="#home"><span className="brand-icon"><Utensils size={21}/></span><span className="brand-title">Menu<span>Pilot</span><small>FOOD & EVENT MANAGEMENT</small></span></a>
-   <nav className={mobile?"nav open":"nav"}>{["Home","About","Services","Occasions","Contact"].map((x)=><a key={x} href={"#"+x.toLowerCase()} onClick={()=>setMobile(false)}>{x}</a>)}</nav>
-   <a className="header-cta" href="#contact">Let's talk <ArrowUpRight size={16}/></a>
+   <nav className={mobile?"nav open":"nav"}>{["Home","About","Services","Occasions","Contact"].map((x)=><a key={x} href={"#"+x.toLowerCase()} onClick={()=>setMobile(false)}>{x}</a>)}<a className="nav-auth" href="/signin" onClick={()=>setMobile(false)}>Sign In</a><a className="nav-auth auth-signup" href="/signup" onClick={()=>setMobile(false)}>Sign Up</a></nav>
+   <div className="header-auth"><a className="auth-signin" href="/signin">Sign In</a><a className="auth-signup" href="/signup">Sign Up</a></div>
    <button className="mobile-toggle" onClick={()=>setMobile(!mobile)} aria-label="Toggle navigation">{mobile?<X/>:<Menu/>}</button>
   </header>
 
