@@ -8,6 +8,7 @@ const Session = require("../src/models/Session");
 const User = require("../src/models/User");
 
 test("confirms the saved user before returning registration success", async (t) => {
+  const originalNodeEnv = process.env.NODE_ENV;
   const originalCreate = User.create;
   const originalFindById = User.findById;
   const originalSessionCreate = Session.create;
@@ -16,6 +17,8 @@ test("confirms the saved user before returning registration success", async (t) 
   let createdUser;
   let verifySavedUser = true;
   let sessionWrites = 0;
+
+  process.env.NODE_ENV = "production";
 
   User.create = async (user) => {
     createdUser = { ...user, _id: userId };
@@ -39,6 +42,11 @@ test("confirms the saved user before returning registration success", async (t) 
   };
 
   t.after(() => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
     User.create = originalCreate;
     User.findById = originalFindById;
     Session.create = originalSessionCreate;
@@ -63,6 +71,8 @@ test("confirms the saved user before returning registration success", async (t) 
   });
 
   assert.equal(response.status, 201);
+  assert.match(response.headers.get("set-cookie") || "", /;\s*SameSite=None/i);
+  assert.match(response.headers.get("set-cookie") || "", /;\s*Secure/i);
   assert.deepEqual((await response.json()).user, {
     id: userId.toString(),
     name: "Test User",
