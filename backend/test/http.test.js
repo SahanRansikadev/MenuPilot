@@ -1,8 +1,22 @@
 const assert = require("node:assert/strict");
 const { once } = require("node:events");
 const test = require("node:test");
+
+const originalFrontendUrl = process.env.FRONTEND_URL;
+process.env.FRONTEND_URL = "http://localhost:3000,https://frontend.example";
 const app = require("../src/application");
 const vercelApp = require("../src/app");
+if (originalFrontendUrl === undefined) {
+  delete process.env.FRONTEND_URL;
+} else {
+  process.env.FRONTEND_URL = originalFrontendUrl;
+}
+
+const expectedHealth = {
+  success: true,
+  message: "MenuPilot Backend is running",
+  status: "OK",
+};
 
 test("serves health checks and rejects invalid sign-up payloads", async (t) => {
   const server = app.listen(0);
@@ -14,9 +28,18 @@ test("serves health checks and rejects invalid sign-up payloads", async (t) => {
   assert.equal(typeof address, "object");
 
   const baseUrl = `http://127.0.0.1:${address.port}`;
-  const healthResponse = await fetch(`${baseUrl}/api/health`);
+  const healthResponse = await fetch(`${baseUrl}/api/health`, {
+    headers: { Origin: "https://frontend.example" },
+  });
   assert.equal(healthResponse.status, 200);
-  assert.deepEqual(await healthResponse.json(), { status: "ok" });
+  assert.deepEqual(await healthResponse.json(), expectedHealth);
+  assert.equal(healthResponse.headers.get("access-control-allow-origin"), "https://frontend.example");
+  assert.equal(healthResponse.headers.get("access-control-allow-credentials"), "true");
+
+  const disallowedOriginResponse = await fetch(`${baseUrl}/api/health`, {
+    headers: { Origin: "https://unlisted.example" },
+  });
+  assert.equal(disallowedOriginResponse.headers.get("access-control-allow-origin"), null);
 
   const signUpResponse = await fetch(`${baseUrl}/api/auth/signup`, {
     method: "POST",
@@ -33,7 +56,7 @@ test("serves health checks and rejects invalid sign-up payloads", async (t) => {
   assert.equal(logoutResponse.status, 200);
 });
 
-test("returns a service-unavailable response when the serverless database connection is missing", async (t) => {
+test("serves the health check through Vercel without requiring MongoDB", async (t) => {
   const originalUri = process.env.MONGODB_URI;
   delete process.env.MONGODB_URI;
 
@@ -53,6 +76,6 @@ test("returns a service-unavailable response when the serverless database connec
   assert.equal(typeof address, "object");
 
   const response = await fetch(`http://127.0.0.1:${address.port}/api/health`);
-  assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), { error: "Service temporarily unavailable." });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), expectedHealth);
 });
