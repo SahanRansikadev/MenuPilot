@@ -17,18 +17,33 @@ async function connectToDatabase() {
     throw new Error("MongoDB URI has an invalid format.");
   }
 
+  let uriDatabaseName;
+  try {
+    uriDatabaseName = new URL(uri).pathname.replace(/^\/+|\/+$/g, "");
+  } catch {
+    throw new Error("MongoDB URI has an invalid format.");
+  }
+
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
 
   if (!connectionPromise) {
+    const databaseName = process.env.MONGODB_DB_NAME?.trim();
+    const options = {
+      bufferCommands: false,
+      maxPoolSize: 10,
+      minPoolSize: 0,
+    };
+
+    if (databaseName) {
+      options.dbName = databaseName;
+    } else if (!uriDatabaseName) {
+      options.dbName = "menupilot";
+    }
+
     connectionPromise = mongoose
-      .connect(uri, {
-        dbName: process.env.MONGODB_DB_NAME || "menupilot",
-        bufferCommands: false,
-        maxPoolSize: 10,
-        minPoolSize: 0,
-      })
+      .connect(uri, options)
       .then((connection) => {
         console.log("Connected to MongoDB.");
         return connection;

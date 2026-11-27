@@ -92,3 +92,44 @@ test("retries after a failed connection and defaults the database name", async (
 
   assert.equal(attempts, 2);
 });
+
+test("uses the database selected in the MongoDB URI when no override is configured", async (t) => {
+  const originalConnect = mongoose.connect;
+  const originalReadyState = mongoose.connection.readyState;
+  const originalUri = process.env.MONGODB_URI;
+  const originalDatabaseName = process.env.MONGODB_DB_NAME;
+  const calls = [];
+
+  process.env.MONGODB_URI =
+    "mongodb+srv://cluster.example.mongodb.net/atlas-integration?retryWrites=true&w=majority";
+  delete process.env.MONGODB_DB_NAME;
+  mongoose.connection.readyState = 0;
+  mongoose.connect = (...args) => {
+    calls.push(args);
+    return Promise.resolve(mongoose);
+  };
+  t.after(() => {
+    mongoose.connect = originalConnect;
+    mongoose.connection.readyState = originalReadyState;
+    if (originalUri === undefined) {
+      delete process.env.MONGODB_URI;
+    } else {
+      process.env.MONGODB_URI = originalUri;
+    }
+    if (originalDatabaseName === undefined) {
+      delete process.env.MONGODB_DB_NAME;
+    } else {
+      process.env.MONGODB_DB_NAME = originalDatabaseName;
+    }
+  });
+
+  await connectToDatabase();
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], process.env.MONGODB_URI);
+  assert.deepEqual(calls[0][1], {
+    bufferCommands: false,
+    maxPoolSize: 10,
+    minPoolSize: 0,
+  });
+});
