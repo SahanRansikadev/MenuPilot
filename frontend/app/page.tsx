@@ -23,14 +23,23 @@ const occasions = [
 ] as const;
 
 export default function Home() {
- const [slideIndex,setSlideIndex]=useState(0), [mobile,setMobile]=useState(false), [sent,setSent]=useState(false);
+ const [slideIndex,setSlideIndex]=useState(0), [mobile,setMobile]=useState(false), [sent,setSent]=useState(false), [authMode,setAuthMode]=useState<"signin"|"signup"|null>(null), [authMessage,setAuthMessage]=useState("");
  useEffect(()=>{const t=window.setInterval(()=>setSlideIndex(v=>(v+1)%slides.length),5500);return()=>window.clearInterval(t)},[]);
+ useEffect(()=>{
+  if(!authMode)return;
+  const previousOverflow=document.body.style.overflow;
+  const closeOnEscape=(event:KeyboardEvent)=>{if(event.key==="Escape")setAuthMode(null)};
+  document.body.style.overflow="hidden";
+  window.addEventListener("keydown",closeOnEscape);
+  return()=>{document.body.style.overflow=previousOverflow;window.removeEventListener("keydown",closeOnEscape)};
+ },[authMode]);
+ const openAuth=(mode:"signin"|"signup")=>{setAuthMode(mode);setAuthMessage("");setMobile(false)};
  const slide=slides[slideIndex];
  return <main>
   <header className="header">
    <a className="brand" href="#home"><span className="brand-icon"><Utensils size={21}/></span><span className="brand-title">Menu<span>Pilot</span><small>FOOD & EVENT MANAGEMENT</small></span></a>
-   <nav className={mobile?"nav open":"nav"}>{["Home","About","Services","Occasions","Contact"].map((x)=><a key={x} href={"#"+x.toLowerCase()} onClick={()=>setMobile(false)}>{x}</a>)}<a className="nav-auth" href="/signin" onClick={()=>setMobile(false)}>Sign In</a><a className="nav-auth auth-signup" href="/signup" onClick={()=>setMobile(false)}>Sign Up</a></nav>
-   <div className="header-auth"><a className="auth-signin" href="/signin">Sign In</a><a className="auth-signup" href="/signup">Sign Up</a></div>
+   <nav className={mobile?"nav open":"nav"}>{["Home","About","Services","Occasions","Contact"].map((x)=><a key={x} href={"#"+x.toLowerCase()} onClick={()=>setMobile(false)}>{x}</a>)}<button className="nav-auth" onClick={()=>openAuth("signin")}>Sign In</button><button className="nav-auth auth-signup" onClick={()=>openAuth("signup")}>Sign Up</button></nav>
+   <div className="header-auth"><button className="auth-signin" onClick={()=>openAuth("signin")}>Sign In</button><button className="auth-signup" onClick={()=>openAuth("signup")}>Sign Up</button></div>
    <button className="mobile-toggle" onClick={()=>setMobile(!mobile)} aria-label="Toggle navigation">{mobile?<X/>:<Menu/>}</button>
   </header>
 
@@ -64,5 +73,6 @@ export default function Home() {
   </section>
 
   <footer className="footer"><div className="footer-main"><div className="footer-about"><a className="brand footer-brand" href="#home"><span className="brand-icon"><Utensils/></span><span className="brand-title">Menu<span>Pilot</span><small>FOOD & EVENT MANAGEMENT</small></span></a><p>Bringing guest menus, kitchen teams and food costing together — so you can focus on creating memorable experiences.</p><div className="social"><a href="#contact"><Instagram/></a><a href="#contact"><Facebook/></a><a href="#contact"><Linkedin/></a></div></div><div className="footer-links"><h4>EXPLORE</h4><a href="#home">Home</a><a href="#about">About us</a><a href="#services">Our services</a><a href="#occasions">Occasions</a></div><div className="footer-links"><h4>PLATFORM</h4><a href="#services">Guest menus</a><a href="#services">Kitchen coordination</a><a href="#services">Supplier costing</a><a href="#services">Reports</a></div><div className="footer-news"><h4>STAY IN THE LOOP</h4><p>Updates and ideas for smoother food and event planning.</p><form onSubmit={e=>{e.preventDefault()}}><input type="email" required placeholder="Your email address"/><button aria-label="Subscribe"><ArrowRight/></button></form></div></div><div className="footer-bottom"><span>© 2026 MenuPilot. All rights reserved.</span><span>Plan better. Serve beautifully.</span><a href="#home">Back to top ↑</a></div></footer>
+  {authMode&&<div className="auth-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)setAuthMode(null)}}><section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="auth-close" onClick={()=>setAuthMode(null)} aria-label="Close form"><X size={19}/></button><span className="auth-icon"><Utensils size={21}/></span><div className="eyebrow"><i/>{authMode==="signin"?"WELCOME BACK":"GET STARTED"}</div><h2 id="auth-title">{authMode==="signin"?"Sign in to MenuPilot":"Create your account"}</h2><p className="auth-intro">{authMode==="signin"?"Enter your details to continue.":"Join MenuPilot to organise food and events with ease."}</p><form className="auth-form" onSubmit={event=>{event.preventDefault();setAuthMessage("Authentication is not connected yet.")}}>{authMode==="signup"&&<label>Full name<input type="text" name="name" autoComplete="name" placeholder="Your name" required/></label>}<label>Email address<input type="email" name="email" autoComplete="email" placeholder="you@example.com" required/></label><label>Password<input type="password" name="password" autoComplete={authMode==="signin"?"current-password":"new-password"} placeholder="Enter your password" minLength={authMode==="signup"?8:undefined} required/></label><button className="btn primary" type="submit">{authMode==="signin"?"Sign In":"Create Account"}<ArrowRight size={17}/></button>{authMessage&&<p className="auth-feedback" role="status">{authMessage}</p>}</form><p className="auth-switch">{authMode==="signin"?"Don't have an account?":"Already have an account?"} <button onClick={()=>openAuth(authMode==="signin"?"signup":"signin")}>{authMode==="signin"?"Sign Up":"Sign In"}</button></p><small className="auth-form-note">Demo form · Authentication is not connected.</small></section></div>}
  </main>
 }
