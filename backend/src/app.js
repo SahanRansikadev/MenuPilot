@@ -20,7 +20,7 @@ serverlessApp.use(async (req, res, next) => {
       "Unable to serve API request. Check MONGODB_URI and Atlas Network Access.",
       { error: error.name },
     );
-    res.status(503).json({ error: "Service temporarily unavailable." });
+    res.status(500).json({ error: "Unable to connect to the database." });
   }
 });
 
