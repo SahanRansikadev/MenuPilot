@@ -46,7 +46,7 @@ export default function Home() {
   <section className="hero" id="home">
    {slides.map((s,i)=><div key={s.kicker} className={"hero-photo "+(i===slideIndex?"active":"")} style={{backgroundImage:`url("${s.image}")`}} role="img" aria-label={s.alt}/>)}
    <div className="hero-overlay"/>
-   <div className="hero-copy" key={slideIndex}><div className="eyebrow light"><i/>{slide.kicker}</div><h1>{slide.title}<br/><em>{slide.accent}</em></h1><p>{slide.copy}</p><div className="hero-buttons"><a className="btn primary" href="#about">Get started <ArrowRight size={17}/></a><a className="explore" href="#occasions">Explore occasions <span>↗</span></a></div></div>
+   <div className="hero-copy" key={slideIndex}><div className="eyebrow light"><i/>{slide.kicker}</div><h1>{slide.title}<br/><em>{slide.accent}</em></h1><p>{slide.copy}</p><div className="hero-buttons"><a className="btn primary" href="/dashboard">Get started <ArrowRight size={17}/></a><a className="explore" href="#occasions">Explore occasions <span>↗</span></a></div></div>
    <div className="hero-footer"><span>{slide.caption}</span><div className="slider"><b>0{slideIndex+1} <i>/ 0{slides.length}</i></b><button onClick={()=>setSlideIndex((slideIndex+slides.length-1)%slides.length)} aria-label="Previous slide"><ChevronLeft/></button><button onClick={()=>setSlideIndex((slideIndex+1)%slides.length)} aria-label="Next slide"><ChevronRight/></button></div></div>
    <div className="dots">{slides.map((s,i)=><button key={s.kicker} className={i===slideIndex?"chosen":""} onClick={()=>setSlideIndex(i)} aria-label={`Slide ${i+1}`}/>)}</div>
   </section>
