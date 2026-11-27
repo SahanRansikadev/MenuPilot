@@ -16,3 +16,7 @@
 @media(max-width:460px){.hero{height:610px}.hero-buttons{gap:15px}.btn{padding:14px 16px;gap:12px}.explore{font-size:10px}.about-pics{min-height:340px}.about-main{height:295px;width:88%}.about-small{width:48%;height:130px}.round-note{width:105px;height:105px;left:-12px;bottom:20px}.service-grid{grid-template-columns:1fr}.service-card{min-height:195px}.occasion-grid{grid-template-columns:1fr}.occasion-image{height:230px}.occasion-heading h2{font-size:33px}.quote{padding:37px 22px}.quote-inner>b{font-size:48px}.quote-inner p{font-size:13px}.footer-main{grid-template-columns:1fr 1fr;gap:28px 20px}.footer-news{grid-column:1/-1}.footer-bottom{font-size:8px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 @media(max-width:760px){.dots{bottom:72px}}
+html{scrollbar-color:var(--blue) #edf1f7;scrollbar-width:thin}
+html::-webkit-scrollbar{width:10px}
+html::-webkit-scrollbar-track{background:#edf1f7}
+html::-webkit-scrollbar-thumb{background:var(--blue);border:2px solid #edf1f7;border-radius:999px}
