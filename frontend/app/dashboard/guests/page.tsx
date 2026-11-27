@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { FormEvent } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -62,10 +61,6 @@ const dashboardLinks = [
   { label: "Recent activity", href: "/dashboard#activity", Icon: ClipboardList },
 ];
 
-function initialsFor(name: string) {
-  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
-}
-
 export default function GuestManagementPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [guests, setGuests] = useState(initialGuests);
@@ -74,7 +69,6 @@ export default function GuestManagementPage() {
   const [preferenceFilter, setPreferenceFilter] = useState("All preferences");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
-  const [addGuestOpen, setAddGuestOpen] = useState(false);
 
   const filteredGuests = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -94,35 +88,7 @@ export default function GuestManagementPage() {
   const pendingCount = guests.filter((guest) => guest.status === "Pending").length;
   const preferenceCount = guests.filter((guest) => guest.preference !== "No restrictions").length;
 
-  const closeModal = () => {
-    setSelectedGuest(null);
-    setAddGuestOpen(false);
-  };
-
-  const addGuest = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const name = String(formData.get("name")).trim();
-    const email = String(formData.get("email")).trim();
-    const booking = String(formData.get("booking")).trim() || "Not assigned";
-    const preference = String(formData.get("preference"));
-
-    setGuests((current) => [{
-      id: Date.now(),
-      name,
-      email,
-      initials: initialsFor(name),
-      booking,
-      preference,
-      status: "Pending",
-      joined: "Just now",
-    }, ...current]);
-    setSearch("");
-    setStatusFilter("All statuses");
-    setPreferenceFilter("All preferences");
-    setCurrentPage(1);
-    setAddGuestOpen(false);
-  };
+  const closeModal = () => setSelectedGuest(null);
 
   return (
     <main className="guest-dashboard" id="guest-management">
@@ -189,9 +155,9 @@ export default function GuestManagementPage() {
               <h1>Guest management</h1>
               <p>Keep guest details, bookings, and preferences all in one place.</p>
             </div>
-            <button className="dashboard-plan-link add-guest-button" onClick={() => setAddGuestOpen(true)}>
+            <Link className="dashboard-plan-link add-guest-button" href="/dashboard/guests/new">
               <Users size={16} /> Add guest
-            </button>
+            </Link>
           </section>
 
           <section className="guest-management-stats" aria-label="Guest summary">
@@ -301,25 +267,6 @@ export default function GuestManagementPage() {
         </div>
       )}
 
-      {addGuestOpen && (
-        <div className="guest-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
-          <section className="guest-modal add-guest-modal" role="dialog" aria-modal="true" aria-labelledby="add-guest-title">
-            <button className="guest-modal-close" onClick={closeModal} aria-label="Close add guest form"><X size={18} /></button>
-            <span className="guest-modal-avatar add-avatar"><Users size={20} /></span>
-            <div className="dashboard-eyebrow"><i /> GUEST DIRECTORY</div>
-            <h2 id="add-guest-title">Add a guest</h2>
-            <p className="guest-modal-intro">Add their details to keep your booking list up to date.</p>
-            <form className="add-guest-form" onSubmit={addGuest}>
-              <label>Full name<input name="name" autoComplete="name" placeholder="e.g. Jamie Parker" required /></label>
-              <label>Email address<input name="email" type="email" autoComplete="email" placeholder="jamie@example.com" required /></label>
-              <label>Booking<input name="booking" placeholder="Booking or event name" /></label>
-              <label>Dietary needs<select name="preference" defaultValue="No restrictions">{preferences.map((preference) => <option key={preference}>{preference}</option>)}</select></label>
-              <div className="add-guest-form-actions"><button type="button" className="cancel-guest-button" onClick={closeModal}>Cancel</button><button type="submit" className="save-guest-button">Add guest <Users size={15} /></button></div>
-            </form>
-            <small className="guest-modal-note">Demo UI · Guest records are saved in this page session only.</small>
-          </section>
-        </div>
-      )}
     </main>
   );
 }
