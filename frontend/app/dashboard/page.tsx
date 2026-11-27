@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   Bell,
@@ -35,6 +36,14 @@ const navigation = [
   { label: "Recent activity", href: "#activity", Icon: ClipboardList },
 ];
 
+type AuthenticatedUser = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
 const bookings = [
   {
     title: "Weekend at Villa Serene",
@@ -61,7 +70,83 @@ const mealTypes = [
 ];
 
 export default function GuestDashboard() {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadUser() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          credentials: "include",
+        });
+
+        if (response.status === 401) {
+          router.replace("/");
+          return;
+        }
+
+        const result: { user?: AuthenticatedUser; error?: string } = await response.json();
+        if (!response.ok || !result.user) {
+          throw new Error(result.error || "Unable to load your account.");
+        }
+
+        if (active) {
+          setUser(result.user);
+        }
+      } catch (error) {
+        if (active) {
+          setAuthError(error instanceof Error ? error.message : "Unable to load your account.");
+        }
+      } finally {
+        if (active) {
+          setAuthLoading(false);
+        }
+      }
+    }
+
+    void loadUser();
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    setAuthError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const result: { error?: string } = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to sign out.");
+      }
+
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Unable to sign out.");
+      setSigningOut(false);
+    }
+  }
+
+  const userInitials =
+    user?.name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "?";
+  const firstName = user?.name.trim().split(/\s+/)[0] || (authLoading ? "..." : "there");
 
   return (
     <main className="guest-dashboard" id="overview">
@@ -80,9 +165,11 @@ export default function GuestDashboard() {
         <button className="dashboard-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
 
         <div className="guest-profile">
-          <span className="guest-avatar">AM</span>
-          <span><b>Alex Morgan</b><small>Guest account</small></span>
-          <ChevronDown size={15} />
+          <span className="guest-avatar">{userInitials}</span>
+          <span>
+            <b>{user?.name || (authLoading ? "Loading account..." : "Account unavailable")}</b>
+            <small>{user?.email || (authLoading ? "Loading profile..." : "")}</small>
+          </span>
         </div>
 
         <div className="sidebar-label">WORKSPACE</div>
@@ -107,9 +194,13 @@ export default function GuestDashboard() {
             <div><b>Need a hand?</b><small>Our team is here to help.</small></div>
             <a href="/#contact" aria-label="Contact support"><ArrowUpRight size={16} /></a>
           </div>
-          <Link className="sidebar-logout" href="/">
-            <LogOut size={17} /> Back to MenuPilot
-          </Link>
+          <button
+            className="sidebar-logout"
+            onClick={handleSignOut}
+            disabled={signingOut}
+          >
+            <LogOut size={17} /> {signingOut ? "Signing out..." : "Sign out"}
+          </button>
         </div>
       </aside>
 
@@ -130,15 +221,30 @@ export default function GuestDashboard() {
             <button className="dashboard-bell" aria-label="Notifications">
               <Bell size={19} /><i />
             </button>
-            <span className="top-avatar">AM</span>
+            <div className="dashboard-account">
+              <span className="top-avatar">{userInitials}</span>
+              <span className="dashboard-account-info">
+                <b>{user?.name || (authLoading ? "Loading..." : "Account unavailable")}</b>
+                <small>{user?.email || ""}</small>
+              </span>
+            </div>
+            <button
+              className="dashboard-logout"
+              onClick={handleSignOut}
+              disabled={signingOut}
+            >
+              <LogOut size={15} />
+              <span>{signingOut ? "Signing out..." : "Sign out"}</span>
+            </button>
           </div>
         </header>
 
         <div className="dashboard-content">
+          {authError && <p className="dashboard-auth-error" role="alert">{authError}</p>}
           <section className="dashboard-welcome">
             <div>
               <div className="dashboard-eyebrow"><i /> YOUR MENUPILOT SPACE</div>
-              <h1>Good morning, Alex <Sun size={19} className="welcome-sun" /></h1>
+              <h1>Good morning, {firstName} <Sun size={19} className="welcome-sun" /></h1>
               <p>Here’s what’s happening with your stays and menus.</p>
             </div>
             <a className="dashboard-plan-link" href="#meal-plan">
