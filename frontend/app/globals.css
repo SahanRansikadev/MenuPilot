@@ -18,6 +18,30 @@
 @media(max-width:760px){.dots{bottom:72px}}
 html{scrollbar-color:var(--blue) #edf1f7;scrollbar-width:thin}
 html::-webkit-scrollbar{width:10px}
+.dashboard-section-content{min-height:calc(100vh - 76px);display:flex;flex-direction:column}
+.section-page-card{background:#fff;border:1px solid #e8edf3;border-radius:8px;padding:24px;margin-bottom:20px;box-shadow:0 6px 20px #142b4908}
+.section-page-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}
+.section-page-card-heading h2,.section-preference-card h2{margin:0;color:#1b2d45;font:800 17px Manrope,sans-serif}
+.section-page-card-heading p,.section-preference-card p{margin:6px 0 0;color:#77869a;font-size:12px}
+.section-booking-list{display:grid}
+.section-booking-row{display:flex;align-items:flex-start;gap:16px;padding:20px 0;border-top:1px solid #edf1f5}
+.section-booking-copy{flex:1;min-width:0}
+.section-booking-copy h3,.section-activity-row h3{margin:0;color:#1b2d45;font:700 14px Manrope,sans-serif}
+.section-booking-copy p,.section-activity-row p{margin:6px 0 12px;color:#77869a;font-size:12px}
+.section-booking-copy>span{display:inline-flex;align-items:center;gap:6px;margin:0 18px 4px 0;color:#78879a;font-size:11px}
+.section-page-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,.8fr);gap:20px;align-items:start}
+.section-preference-card{display:flex;align-items:center;gap:14px}
+.section-preference-card>div{flex:1}
+.section-preference-check{display:inline-flex;align-items:center;gap:5px;color:#258768;font-size:11px;font-weight:700}
+.section-activity-list{display:grid}
+.section-activity-row{display:flex;align-items:flex-start;gap:14px;padding:20px 0;border-top:1px solid #edf1f5}
+.section-activity-icon{width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;background:#edf3ff;color:#2864df}
+.section-activity-icon.green{background:#e8f7f0;color:#258768}
+.section-activity-icon.violet{background:#f1edff;color:#7555c7}
+.section-activity-icon.gold{background:#fff5e6;color:#ba8433}
+.section-activity-row small{display:inline-flex;align-items:center;gap:5px;color:#929eae;font-size:10px}
+.dashboard-section-content>.dashboard-footer{margin-top:auto}
+@media(max-width:760px){.section-page-grid{grid-template-columns:1fr}.section-page-card{padding:19px}.section-booking-row{flex-wrap:wrap}.section-booking-row>.booking-status{margin-left:52px}.section-page-card-heading{align-items:flex-start}}
 html::-webkit-scrollbar-track{background:#edf1f7}
 html::-webkit-scrollbar-thumb{background:var(--blue);border:2px solid #edf1f7;border-radius:999px}
 .auth-signin,.auth-signup{font-family:inherit;cursor:pointer}.nav button{font-family:inherit;cursor:pointer}

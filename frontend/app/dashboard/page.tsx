@@ -2,27 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { API_BASE_URL } from "../../lib/api";
 import {
   ArrowUpRight,
   Bell,
   CalendarDays,
   Check,
-  ChevronDown,
   ChevronRight,
   CircleHelp,
   ClipboardList,
-  Clock3,
-  Coffee,
   LayoutDashboard,
   Leaf,
   LogOut,
-  MapPin,
   Menu,
-  PartyPopper,
-  Plus,
-  Soup,
   Sun,
   Utensils,
   Users,
@@ -30,11 +23,11 @@ import {
 } from "lucide-react";
 
 const navigation = [
-  { label: "Overview", href: "#overview", Icon: LayoutDashboard },
+  { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Guests", href: "/dashboard/guests", Icon: Users },
-  { label: "My bookings", href: "#upcoming", Icon: CalendarDays },
-  { label: "Meal planner", href: "#meal-plan", Icon: Utensils },
-  { label: "Recent activity", href: "#activity", Icon: ClipboardList },
+  { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
+  { label: "Meal planner", href: "/dashboard/meal-planner", Icon: Utensils },
+  { label: "Recent activity", href: "/dashboard/recent-activity", Icon: ClipboardList },
 ];
 
 type AuthenticatedUser = {
@@ -43,33 +36,9 @@ type AuthenticatedUser = {
   email: string;
 };
 
-const bookings = [
-  {
-    title: "Weekend at Villa Serene",
-    detail: "Breakfast & dinner · 2 guests",
-    date: "5–7 Dec, 2026",
-    status: "Confirmed",
-    Icon: Coffee,
-    tone: "blue",
-  },
-  {
-    title: "Garden dinner",
-    detail: "Private event · 6 guests",
-    date: "19 Dec, 2026",
-    status: "Awaiting menu",
-    Icon: PartyPopper,
-    tone: "gold",
-  },
-];
-
-const mealTypes = [
-  { label: "Breakfast", count: 8, percent: 80, Icon: Coffee, tone: "blue" },
-  { label: "Lunch", count: 6, percent: 60, Icon: Soup, tone: "green" },
-  { label: "Dinner", count: 4, percent: 40, Icon: Utensils, tone: "gold" },
-];
-
 export default function GuestDashboard() {
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -173,17 +142,18 @@ export default function GuestDashboard() {
 
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="dashboard-nav" aria-label="Guest dashboard">
-          {navigation.map(({ label, href, Icon }, index) => (
-            <a
+          {navigation.map(({ label, href, Icon }) => (
+            <Link
               key={label}
-              className={index === 0 ? "active" : ""}
+              className={pathname === href ? "active" : ""}
+              aria-current={pathname === href ? "page" : undefined}
               href={href}
               onClick={() => setSidebarOpen(false)}
             >
               <Icon size={18} />
               <span>{label}</span>
               {label === "My bookings" && <span className="nav-count">2</span>}
-            </a>
+            </Link>
           ))}
         </nav>
 
@@ -246,9 +216,9 @@ export default function GuestDashboard() {
               <h1>Good morning, {firstName} <Sun size={19} className="welcome-sun" /></h1>
               <p>Here’s what’s happening with your stays and menus.</p>
             </div>
-            <a className="dashboard-plan-link" href="#meal-plan">
+            <Link className="dashboard-plan-link" href="/dashboard/meal-planner">
               <Utensils size={17} /> Plan a meal <ArrowUpRight size={15} />
-            </a>
+            </Link>
           </section>
 
           <section className="dashboard-stats" aria-label="Your dashboard statistics">
@@ -276,82 +246,6 @@ export default function GuestDashboard() {
               <div className="stat-label">Food preferences</div>
               <div className="stat-value">03 <span className="stat-caption">saved</span></div>
               <div className="stat-foot"><Check size={14} className="tiny-check" /> Shared with your hosts</div>
-            </article>
-          </section>
-
-          <section className="dashboard-panels">
-            <article className="dashboard-card selection-chart" id="activity">
-              <div className="dashboard-card-heading">
-                <div><h2>Meal selections</h2><p>Your choices over the last 7 days</p></div>
-                <span className="chart-range">This week <ChevronDown size={14} /></span>
-              </div>
-              <div className="chart-legend"><span><i /> Meals selected</span><b>18 <small>total</small></b></div>
-              <div className="selection-chart-plot">
-                <div className="chart-y-labels"><span>12</span><span>8</span><span>4</span><span>0</span></div>
-                <svg viewBox="0 0 640 190" preserveAspectRatio="none" role="img" aria-label="Meal selections chart: selections increased from Monday through Sunday">
-                  <defs>
-                    <linearGradient id="selectionFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#2864df" stopOpacity=".18" />
-                      <stop offset="100%" stopColor="#2864df" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path className="chart-area" d="M0 148 C38 144 54 115 106 120 S164 137 213 99 S270 110 320 88 S379 99 426 65 S483 83 533 54 S592 64 640 25 L640 190 L0 190 Z" />
-                  <path className="chart-line" d="M0 148 C38 144 54 115 106 120 S164 137 213 99 S270 110 320 88 S379 99 426 65 S483 83 533 54 S592 64 640 25" />
-                  <circle cx="106" cy="120" r="4" /><circle cx="213" cy="99" r="4" /><circle cx="320" cy="88" r="4" /><circle cx="426" cy="65" r="4" /><circle cx="533" cy="54" r="4" /><circle cx="640" cy="25" r="4" />
-                </svg>
-                <div className="chart-grid"><i /><i /><i /><i /></div>
-              </div>
-              <div className="chart-x-labels"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
-            </article>
-
-            <article className="dashboard-card next-booking" id="upcoming">
-              <div className="dashboard-card-heading">
-                <div><h2>Next stay</h2><p>Your upcoming booking</p></div>
-                <button aria-label="More booking options" className="more-button">···</button>
-              </div>
-              <div className="booking-date-block"><b>05</b><span>DEC<br />2026</span></div>
-              <h3>Weekend at Villa Serene</h3>
-              <div className="booking-location"><MapPin size={15} /> Galle, Sri Lanka</div>
-              <div className="booking-divider" />
-              <div className="booking-detail-row"><span>Guests</span><b>2 people</b></div>
-              <div className="booking-detail-row"><span>Meal plan</span><b>Breakfast & dinner</b></div>
-              <a className="booking-open" href="#upcoming">View booking details <ArrowUpRight size={15} /></a>
-            </article>
-          </section>
-
-          <section className="dashboard-bottom-panels">
-            <article className="dashboard-card meal-summary" id="meal-plan">
-              <div className="dashboard-card-heading">
-                <div><h2>Your meal plan</h2><p>Selections for all upcoming bookings</p></div>
-                <a className="view-all-link" href="#upcoming">View all <ChevronRight size={15} /></a>
-              </div>
-              <div className="meal-bars">
-                {mealTypes.map(({ label, count, percent, Icon, tone }) => (
-                  <div className="meal-bar-row" key={label}>
-                    <span className={`meal-type-icon ${tone}`}><Icon size={17} /></span>
-                    <span className="meal-type-name">{label}</span>
-                    <div className="meal-bar-track"><i className={tone} style={{ width: `${percent}%` }} /></div>
-                    <b>{count}<small> meals</small></b>
-                  </div>
-                ))}
-              </div>
-              <a className="meal-plan-action" href="#upcoming"><span><Plus size={16} /></span>Review your meal choices <ArrowUpRight size={15} /></a>
-            </article>
-
-            <article className="dashboard-card recent-bookings">
-              <div className="dashboard-card-heading">
-                <div><h2>Recent bookings</h2><p>Keep track of your plans</p></div>
-                <span className="booking-total">2 bookings</span>
-              </div>
-              <div className="recent-booking-list">
-                {bookings.map(({ title, detail, date, status, Icon, tone }) => (
-                  <div className="recent-booking" key={title}>
-                    <span className={`recent-booking-icon ${tone}`}><Icon size={18} /></span>
-                    <div className="recent-booking-info"><b>{title}</b><span>{detail}</span><small><Clock3 size={12} /> {date}</small></div>
-                    <span className={`booking-status ${status==="Confirmed"?"confirmed":"pending"}`}>{status}</span>
-                  </div>
-                ))}
-              </div>
             </article>
           </section>
 
