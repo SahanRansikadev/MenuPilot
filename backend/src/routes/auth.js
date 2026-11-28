@@ -4,7 +4,9 @@ const express = require("express");
 const { rateLimit } = require("express-rate-limit");
 const Session = require("../models/Session");
 const User = require("../models/User");
+const requireAuth = require("../middleware/require-auth");
 const parseAuthPayload = require("../utils/auth-validation");
+const parseProfilePayload = require("../utils/profile-validation");
 const hashSessionToken = require("../utils/hash-session-token");
 
 const router = express.Router();
@@ -76,7 +78,9 @@ router.get("/me", async (req, res) => {
       return res.status(401).json({ error: "Session expired. Please sign in again." });
     }
 
-    const user = await User.findById(session.userId).select("name email").lean();
+    const user = await User.findById(session.userId)
+      .select("name email phone guestCount childrenCount countryCode feedback")
+      .lean();
     if (!user) {
       await Session.deleteOne({ _id: session._id });
       clearSessionCookie(res);
@@ -88,11 +92,53 @@ router.get("/me", async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
+        phone: user.phone || "",
+        guestCount: user.guestCount || 1,
+        childrenCount: user.childrenCount || 0,
+        countryCode: user.countryCode || "",
+        feedback: user.feedback || "",
       },
     });
   } catch (error) {
     console.error("Session lookup failed:", error);
     return res.status(503).json({ error: "Unable to load your account right now." });
+  }
+});
+
+router.put("/profile", requireAuth, async (req, res) => {
+  const parsed = parseProfilePayload(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ error: parsed.error });
+  }
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: parsed.value },
+      { new: true, runValidators: true },
+    )
+      .select("name email phone guestCount childrenCount countryCode feedback")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+
+    return res.json({
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone || "",
+        guestCount: user.guestCount,
+        childrenCount: user.childrenCount,
+        countryCode: user.countryCode,
+        feedback: user.feedback || "",
+      },
+    });
+  } catch (error) {
+    console.error("Guest profile update failed:", error);
+    return res.status(500).json({ error: "Unable to update your guest profile right now." });
   }
 });
 

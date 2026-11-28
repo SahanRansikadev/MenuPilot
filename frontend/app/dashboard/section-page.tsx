@@ -23,7 +23,7 @@ type DashboardSection = "bookings";
 
 const navigation = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
-  { label: "Guests", href: "/dashboard/guests", Icon: Users },
+  { label: "Guest profile", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
   { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];

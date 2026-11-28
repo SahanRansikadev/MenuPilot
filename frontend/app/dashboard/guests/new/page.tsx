@@ -72,7 +72,7 @@ const meals = [
 
 const dashboardLinks = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
-  { label: "Guests", href: "/dashboard/guests", Icon: Users },
+  { label: "Guest profile", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
   { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];
@@ -161,7 +161,7 @@ export default function NewGuestBookingPage() {
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="dashboard-nav" aria-label="Dashboard navigation">
           {dashboardLinks.map(({ label, href, Icon }) => (
-            <Link key={label} className={label === "Guests" ? "active" : ""} aria-current={label === "Guests" ? "page" : undefined} href={href} onClick={() => setSidebarOpen(false)}>
+            <Link key={label} className={label === "Guest profile" ? "active" : ""} aria-current={label === "Guest profile" ? "page" : undefined} href={href} onClick={() => setSidebarOpen(false)}>
               <Icon size={18} /><span>{label}</span>
             </Link>
           ))}
@@ -181,7 +181,7 @@ export default function NewGuestBookingPage() {
         <header className="dashboard-topbar">
           <div className="dashboard-breadcrumb">
             <button className="dashboard-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
-            <span>Workspace</span><ChevronRight size={15} /><Link href="/dashboard/guests">Guests</Link><ChevronRight size={15} /><b>{submitted ? "Complete" : "New booking"}</b>
+            <span>Workspace</span><ChevronRight size={15} /><Link href="/dashboard/guests">Guest profile</Link><ChevronRight size={15} /><b>{submitted ? "Complete" : "New booking"}</b>
           </div>
           <div className="dashboard-top-actions">
             <span className="dashboard-date">Friday, 27 November 2026</span>

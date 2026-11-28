@@ -12,6 +12,16 @@ const userSchema = new mongoose.Schema(
       maxlength: 254,
     },
     passwordHash: { type: String, required: true, select: false },
+    phone: { type: String, trim: true, maxlength: 16, default: "" },
+    guestCount: { type: Number, min: 1, max: 1000, default: 1 },
+    childrenCount: { type: Number, min: 0, max: 1000, default: 0 },
+    countryCode: {
+      type: String,
+      uppercase: true,
+      default: "",
+      validate: (value) => !value || /^[A-Z]{2}$/.test(value),
+    },
+    feedback: { type: String, trim: true, maxlength: 1000, default: "" },
   },
   { timestamps: true },
 );
