@@ -11,7 +11,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
-  ClipboardList,
   LayoutDashboard,
   Leaf,
   LogOut,
@@ -57,7 +56,7 @@ const dashboardLinks = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Guests", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
-  { label: "Recent activity", href: "/dashboard/recent-activity", Icon: ClipboardList },
+  { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];
 
 export default function GuestManagementPage() {
@@ -95,7 +94,7 @@ export default function GuestManagementPage() {
 
       <aside className={`guest-sidebar${sidebarOpen ? " is-open" : ""}`}>
         <Link className="dashboard-brand" href="/dashboard">
-          <span className="dashboard-brand-icon"><Utensils size={20} /></span>
+          <span className="dashboard-brand-icon" aria-hidden="true" />
           <span>Menu<span>Pilot</span><small>GUEST PORTAL</small></span>
         </Link>
         <button className="dashboard-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>

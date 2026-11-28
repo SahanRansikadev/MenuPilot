@@ -8,11 +8,8 @@ import {
   ArrowUpRight,
   Bell,
   CalendarDays,
-  Check,
   ChevronRight,
   CircleHelp,
-  ClipboardList,
-  Clock3,
   LayoutDashboard,
   Leaf,
   LogOut,
@@ -22,13 +19,13 @@ import {
   X,
 } from "lucide-react";
 
-type DashboardSection = "bookings" | "recent-activity";
+type DashboardSection = "bookings";
 
 const navigation = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Guests", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
-  { label: "Recent activity", href: "/dashboard/recent-activity", Icon: ClipboardList },
+  { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];
 
 const pageDetails: Record<DashboardSection, { title: string; eyebrow: string; description: string }> = {
@@ -36,11 +33,6 @@ const pageDetails: Record<DashboardSection, { title: string; eyebrow: string; de
     title: "My bookings",
     eyebrow: "YOUR STAYS & EVENTS",
     description: "Review your upcoming stays, events, and booking details.",
-  },
-  "recent-activity": {
-    title: "Recent activity",
-    eyebrow: "YOUR LATEST UPDATES",
-    description: "A timeline of the latest changes across your MenuPilot space.",
   },
 };
 
@@ -72,12 +64,6 @@ function formatBookingDate(value: string) {
     year: "numeric",
   }).format(new Date(year, month - 1, day));
 }
-
-const recentActivity = [
-  { title: "Booking confirmed", detail: "Weekend at Villa Serene · 5–7 Dec, 2026", time: "Today, 10:42 AM", Icon: Check, tone: "green" },
-  { title: "Meal preferences updated", detail: "Vegetarian preference saved for your profile", time: "Yesterday, 4:18 PM", Icon: Leaf, tone: "violet" },
-  { title: "New booking invitation", detail: "Garden dinner · 19 Dec, 2026", time: "Nov 25, 2026 · 11:06 AM", Icon: CalendarDays, tone: "gold" },
-];
 
 export default function DashboardSectionPage({ section }: { section: DashboardSection }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -126,7 +112,7 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
 
       <aside className={`guest-sidebar${sidebarOpen ? " is-open" : ""}`}>
         <Link className="dashboard-brand" href="/dashboard">
-          <span className="dashboard-brand-icon"><Utensils size={20} /></span>
+          <span className="dashboard-brand-icon" aria-hidden="true" />
           <span>Menu<span>Pilot</span><small>GUEST PORTAL</small></span>
         </Link>
         <button className="dashboard-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
@@ -212,20 +198,6 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
                       {booking.notes && <p className="section-booking-notes">{booking.notes}</p>}
                     </div>
                     <span className="booking-status confirmed">Saved</span>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {section === "recent-activity" && (
-            <section className="section-page-card" aria-label="Recent activity">
-              <div className="section-page-card-heading"><div><h2>Activity timeline</h2><p>Your latest booking and meal updates.</p></div></div>
-              <div className="section-activity-list">
-                {recentActivity.map(({ title, detail, time, Icon, tone }) => (
-                  <article className="section-activity-row" key={title}>
-                    <span className={`section-activity-icon ${tone}`}><Icon size={17} /></span>
-                    <div><h3>{title}</h3><p>{detail}</p><small><Clock3 size={13} /> {time}</small></div>
                   </article>
                 ))}
               </div>
