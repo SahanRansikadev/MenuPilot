@@ -62,6 +62,16 @@ type AuthenticatedUser = {
   email: string;
 };
 
+type CatalogFood = {
+  id: string;
+  name: string;
+};
+
+type SavedBooking = {
+  id: string;
+  date: string;
+};
+
 export default function GuestDashboard() {
   const router = useRouter();
   const pathname = usePathname();
@@ -76,12 +86,25 @@ export default function GuestDashboard() {
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [plannerOpen, setPlannerOpen] = useState(false);
-  const [plannerStep, setPlannerStep] = useState<"guest-details" | "meals" | "complete">("guest-details");
+  const [plannerStep, setPlannerStep] = useState<"guest-details" | "meals" | "foods" | "complete">("guest-details");
   const [guestDateForm, setGuestDateForm] = useState(initialGuestDateForm);
   const [selectedMeals, setSelectedMeals] = useState<string[]>([]);
   const [selectedMealTimes, setSelectedMealTimes] = useState<Record<string, string>>({});
   const [otherMealName, setOtherMealName] = useState("");
   const [plannerError, setPlannerError] = useState("");
+  const [foodQueries, setFoodQueries] = useState<Record<string, string>>({});
+  const [activeFoodSearchMeal, setActiveFoodSearchMeal] = useState<string | null>(null);
+  const [foodResults, setFoodResults] = useState<Record<string, CatalogFood[]>>({});
+  const [foodSearchLoading, setFoodSearchLoading] = useState<Record<string, boolean>>({});
+  const [foodSearchErrors, setFoodSearchErrors] = useState<Record<string, string>>({});
+  const [foodsByMeal, setFoodsByMeal] = useState<Record<string, CatalogFood[]>>({});
+  const [addingFoodForMeal, setAddingFoodForMeal] = useState<string | null>(null);
+  const [isVegetarian, setIsVegetarian] = useState<boolean | null>(null);
+  const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
+  const [allergyCount, setAllergyCount] = useState("1");
+  const [bookingNotes, setBookingNotes] = useState("");
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [savedBooking, setSavedBooking] = useState<SavedBooking | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -122,6 +145,54 @@ export default function GuestDashboard() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (plannerStep !== "foods" || !plannerOpen || !activeFoodSearchMeal) return;
+
+    let active = true;
+    const meal = activeFoodSearchMeal;
+    const query = foodQueries[meal] || "";
+    const timer = setTimeout(async () => {
+      setFoodSearchLoading((current) => ({ ...current, [meal]: true }));
+      setFoodSearchErrors((current) => ({ ...current, [meal]: "" }));
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/foods?search=${encodeURIComponent(query.trim())}`,
+          { credentials: "include" },
+        );
+        const result: { foods?: CatalogFood[]; error?: string } = await response.json();
+
+        if (response.status === 401) {
+          router.replace("/");
+          return;
+        }
+        if (!response.ok || !result.foods) {
+          throw new Error(result.error || "Unable to search foods.");
+        }
+
+        if (active) {
+          setFoodResults((current) => ({ ...current, [meal]: result.foods || [] }));
+        }
+      } catch (error) {
+        if (active) {
+          setFoodSearchErrors((current) => ({
+            ...current,
+            [meal]: error instanceof Error ? error.message : "Unable to search foods.",
+          }));
+        }
+      } finally {
+        if (active) {
+          setFoodSearchLoading((current) => ({ ...current, [meal]: false }));
+        }
+      }
+    }, query.trim() ? 250 : 0);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [activeFoodSearchMeal, foodQueries, plannerOpen, plannerStep, router]);
+
   async function handleSignOut() {
     setSigningOut(true);
     setAuthError("");
@@ -150,6 +221,19 @@ export default function GuestDashboard() {
     setSelectedMeals([]);
     setSelectedMealTimes({});
     setOtherMealName("");
+    setFoodQueries({});
+    setActiveFoodSearchMeal(null);
+    setFoodResults({});
+    setFoodSearchLoading({});
+    setFoodSearchErrors({});
+    setFoodsByMeal({});
+    setAddingFoodForMeal(null);
+    setIsVegetarian(null);
+    setHasAllergies(null);
+    setAllergyCount("1");
+    setBookingNotes("");
+    setBookingSubmitting(false);
+    setSavedBooking(null);
     setPlannerError("");
     setPlannerStep("guest-details");
     setPlannerOpen(true);
@@ -168,14 +252,95 @@ export default function GuestDashboard() {
   }
 
   function toggleMealOption(option: string) {
+    const removing = selectedMeals.includes(option);
     setSelectedMeals((current) =>
-      current.includes(option)
+      removing
         ? current.filter((meal) => meal !== option)
         : [...current, option],
     );
     setPlannerError("");
-    if (option === "Other" && selectedMeals.includes("Other")) {
+    if (removing) {
+      setSelectedMealTimes((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setFoodsByMeal((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setFoodQueries((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setFoodResults((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      if (activeFoodSearchMeal === option) setActiveFoodSearchMeal(null);
+    }
+    if (option === "Other" && removing) {
       setOtherMealName("");
+    }
+  }
+
+  function selectFoodForMeal(meal: string, food: CatalogFood) {
+    const currentFoods = foodsByMeal[meal] || [];
+    if (currentFoods.some((selected) => selected.id === food.id)) return;
+    if (currentFoods.length >= 20) {
+      setFoodSearchErrors((current) => ({ ...current, [meal]: "Choose no more than 20 foods for one meal." }));
+      return;
+    }
+
+    setFoodsByMeal((current) => {
+      const latestFoods = current[meal] || [];
+      if (latestFoods.some((selected) => selected.id === food.id) || latestFoods.length >= 20) return current;
+      return { ...current, [meal]: [...latestFoods, food] };
+    });
+    setActiveFoodSearchMeal(null);
+    setFoodQueries((current) => ({ ...current, [meal]: "" }));
+    setFoodSearchErrors((current) => ({ ...current, [meal]: "" }));
+  }
+
+  async function addNewFoodForMeal(meal: string) {
+    const name = (foodQueries[meal] || "").trim();
+    if (!name) return;
+    if ((foodsByMeal[meal] || []).length >= 20) {
+      setFoodSearchErrors((current) => ({ ...current, [meal]: "Choose no more than 20 foods for one meal." }));
+      return;
+    }
+
+    setAddingFoodForMeal(meal);
+    setFoodSearchErrors((current) => ({ ...current, [meal]: "" }));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/foods`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const result: { food?: CatalogFood; error?: string } = await response.json();
+
+      if (response.status === 401) {
+        router.replace("/");
+        return;
+      }
+      if (!response.ok || !result.food) {
+        throw new Error(result.error || "Unable to add this food.");
+      }
+
+      selectFoodForMeal(meal, result.food);
+    } catch (error) {
+      setFoodSearchErrors((current) => ({
+        ...current,
+        [meal]: error instanceof Error ? error.message : "Unable to add this food.",
+      }));
+    } finally {
+      setAddingFoodForMeal(null);
     }
   }
 
@@ -198,7 +363,68 @@ export default function GuestDashboard() {
       return;
     }
 
-    setPlannerStep("complete");
+    setFoodQueries(Object.fromEntries(selectedMeals.map((meal) => [meal, ""])));
+    setPlannerStep("foods");
+  }
+
+  async function handleBookingSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPlannerError("");
+
+    if (selectedMeals.some((meal) => (foodsByMeal[meal] || []).length === 0)) {
+      setPlannerError("Choose at least one food for every selected meal.");
+      return;
+    }
+    if (isVegetarian === null || hasAllergies === null) {
+      setPlannerError("Choose the vegetarian and allergy options.");
+      return;
+    }
+    if (hasAllergies && (Number(allergyCount) < 1 || Number(allergyCount) > Number(guestDateForm.guestCount))) {
+      setPlannerError("Enter an allergy count between one and the guest count.");
+      return;
+    }
+
+    setBookingSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`,
+          guestCount: Number(guestDateForm.guestCount),
+          childrenCount: Number(guestDateForm.childCount),
+          driverCount: Number(guestDateForm.driverCount || 0),
+          guideCount: Number(guestDateForm.guideCount || 0),
+          meals: selectedMeals.map((type) => ({
+            type,
+            ...(type === "Other" ? { name: otherMealName.trim() } : {}),
+            time: selectedMealTimes[type],
+            foodIds: (foodsByMeal[type] || []).map((food) => food.id),
+          })),
+          isVegetarian,
+          hasAllergies,
+          allergyCount: hasAllergies ? Number(allergyCount) : 0,
+          notes: bookingNotes.trim(),
+        }),
+      });
+      const result: { booking?: SavedBooking; error?: string } = await response.json();
+
+      if (response.status === 401) {
+        router.replace("/");
+        return;
+      }
+      if (!response.ok || !result.booking) {
+        throw new Error(result.error || "Unable to confirm this booking.");
+      }
+
+      setSavedBooking(result.booking);
+      setPlannerStep("complete");
+    } catch (error) {
+      setPlannerError(error instanceof Error ? error.message : "Unable to confirm this booking.");
+    } finally {
+      setBookingSubmitting(false);
+    }
   }
 
   const userInitials =
@@ -452,7 +678,9 @@ export default function GuestDashboard() {
         <div
           className="planner-drawer-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setPlannerOpen(false);
+            if (event.target === event.currentTarget && !bookingSubmitting && !addingFoodForMeal) {
+              setPlannerOpen(false);
+            }
           }}
         >
           <aside className="planner-drawer" role="dialog" aria-modal="true" aria-labelledby="planner-drawer-title">
@@ -462,10 +690,10 @@ export default function GuestDashboard() {
                   {new Intl.DateTimeFormat("en", { dateStyle: "full" }).format(selectedDate)}
                 </span>
                 <h2 id="planner-drawer-title">
-                  {plannerStep === "complete" ? "Meal plan submitted" : "Plan your day"}
+                  {plannerStep === "complete" ? "Booking confirmed" : plannerStep === "foods" ? "Confirm your booking" : "Plan your day"}
                 </h2>
               </div>
-              <button type="button" className="planner-drawer-close" onClick={() => setPlannerOpen(false)} aria-label="Close meal planner">
+              <button type="button" className="planner-drawer-close" onClick={() => setPlannerOpen(false)} aria-label="Close meal planner" disabled={bookingSubmitting || addingFoodForMeal !== null}>
                 <X size={19} />
               </button>
             </header>
@@ -473,7 +701,7 @@ export default function GuestDashboard() {
             {plannerStep === "guest-details" && (
               <form className="planner-drawer-form" onSubmit={handleGuestDetailsNext}>
                 <div className="planner-step-heading">
-                  <span>STEP 1 OF 2</span>
+                  <span>STEP 1 OF 3</span>
                   <h3>Who is joining you?</h3>
                   <p>Tell us how many people will be there on this date.</p>
                 </div>
@@ -483,6 +711,7 @@ export default function GuestDashboard() {
                     <input
                       type="number"
                       min="1"
+                      max="1000"
                       step="1"
                       required
                       value={guestDateForm.guestCount}
@@ -494,6 +723,7 @@ export default function GuestDashboard() {
                     <input
                       type="number"
                       min="0"
+                      max={guestDateForm.guestCount}
                       step="1"
                       required
                       value={guestDateForm.childCount}
@@ -505,6 +735,7 @@ export default function GuestDashboard() {
                     <input
                       type="number"
                       min="0"
+                      max="1000"
                       step="1"
                       placeholder="Number of drivers"
                       value={guestDateForm.driverCount}
@@ -516,6 +747,7 @@ export default function GuestDashboard() {
                     <input
                       type="number"
                       min="0"
+                      max="1000"
                       step="1"
                       placeholder="Number of guides"
                       value={guestDateForm.guideCount}
@@ -525,7 +757,7 @@ export default function GuestDashboard() {
                 </div>
                 {plannerError && <p className="planner-form-error" role="alert">{plannerError}</p>}
                 <div className="planner-drawer-actions">
-                  <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)}>Cancel</button>
+                  <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)} disabled={addingFoodForMeal !== null}>Cancel</button>
                   <button type="submit" className="planner-primary-button">Next <ChevronRight size={16} /></button>
                 </div>
               </form>
@@ -534,7 +766,7 @@ export default function GuestDashboard() {
             {plannerStep === "meals" && (
               <form className="planner-drawer-form" onSubmit={handleMealSelectionNext}>
                 <div className="planner-step-heading">
-                  <span>STEP 2 OF 2</span>
+                  <span>STEP 2 OF 3</span>
                   <h3>Which meals should we plan?</h3>
                   <p>Select the meal types you need for this date.</p>
                 </div>
@@ -571,6 +803,7 @@ export default function GuestDashboard() {
                     Other meal or event name
                     <input
                       type="text"
+                      maxLength={100}
                       autoFocus
                       required
                       value={otherMealName}
@@ -581,9 +814,161 @@ export default function GuestDashboard() {
                 )}
                 {plannerError && <p className="planner-form-error" role="alert">{plannerError}</p>}
                 <div className="planner-drawer-actions">
-                  <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)}>Cancel</button>
+                  <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)} disabled={addingFoodForMeal !== null}>Cancel</button>
                   <button type="button" className="planner-back-button" onClick={() => { setPlannerError(""); setPlannerStep("guest-details"); }}>Back</button>
                   <button type="submit" className="planner-primary-button">Next <ChevronRight size={16} /></button>
+                </div>
+              </form>
+            )}
+
+            {plannerStep === "foods" && (
+              <form className="planner-drawer-form" onSubmit={handleBookingSubmit}>
+                <div className="planner-step-heading">
+                  <span>STEP 3 OF 3</span>
+                  <h3>Choose foods and preferences</h3>
+                  <p>Add foods for each selected meal, then confirm dietary details.</p>
+                </div>
+
+                <div className="planner-food-selections">
+                  {selectedMeals.map((meal) => {
+                    const query = foodQueries[meal] || "";
+                    const results = foodResults[meal] || [];
+                    const exactMatch = results.some((food) => food.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase());
+                    const selectedFoods = foodsByMeal[meal] || [];
+
+                    return (
+                      <section className="planner-food-card" key={meal}>
+                        <div className="planner-food-card-heading">
+                          <h4>{meal === "Other" ? otherMealName : meal}</h4>
+                          <span>{selectedMealTimes[meal]}</span>
+                        </div>
+                        <div className="planner-selected-foods">
+                          {selectedFoods.map((food) => (
+                            <span className="planner-food-chip" key={food.id}>
+                              {food.name}
+                              <button
+                                type="button"
+                                aria-label={`Remove ${food.name} from ${meal}`}
+                                onClick={() => setFoodsByMeal((current) => ({
+                                  ...current,
+                                  [meal]: (current[meal] || []).filter((selected) => selected.id !== food.id),
+                                }))}
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <label className="planner-food-search">
+                          Search foods
+                          <input
+                            type="search"
+                            maxLength={100}
+                            value={query}
+                            onFocus={() => setActiveFoodSearchMeal(meal)}
+                            onChange={(event) => {
+                              setFoodSearchLoading((current) => ({ ...current, [meal]: true }));
+                              setFoodSearchErrors((current) => ({ ...current, [meal]: "" }));
+                              setFoodResults((current) => ({ ...current, [meal]: [] }));
+                              setFoodQueries((current) => ({ ...current, [meal]: event.target.value }));
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter") return;
+                              event.preventDefault();
+                              if (exactMatch) {
+                                const exactFood = results.find((food) => food.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase());
+                                if (exactFood) selectFoodForMeal(meal, exactFood);
+                              } else if (query.trim()) {
+                                void addNewFoodForMeal(meal);
+                              }
+                            }}
+                            placeholder={`Search or add food for ${meal.toLocaleLowerCase()}...`}
+                            aria-label={`Search foods for ${meal}`}
+                          />
+                        </label>
+                        {activeFoodSearchMeal === meal && foodSearchLoading[meal] && <small className="planner-food-status">Searching foods...</small>}
+                        {activeFoodSearchMeal === meal && foodSearchErrors[meal] && <p className="planner-form-error" role="alert">{foodSearchErrors[meal]}</p>}
+                        {activeFoodSearchMeal === meal && !foodSearchLoading[meal] && !foodSearchErrors[meal] && results.length === 0 && (
+                          <small className="planner-food-status">
+                            {query.trim() ? "No matching foods yet. Add it to the shared catalog." : "No foods in the catalog yet. Search for a food to add it."}
+                          </small>
+                        )}
+                        {activeFoodSearchMeal === meal && !foodSearchLoading[meal] && results.length > 0 && (
+                          <div className="planner-food-results" aria-label={`Available foods for ${meal}`}>
+                            {results.map((food) => {
+                              const alreadySelected = selectedFoods.some((selected) => selected.id === food.id);
+                              return (
+                                <button
+                                  type="button"
+                                  key={food.id}
+                                  disabled={alreadySelected}
+                                  onClick={() => selectFoodForMeal(meal, food)}
+                                >
+                                  {food.name}{alreadySelected ? " · Added" : ""}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {activeFoodSearchMeal === meal && query.trim() && !foodSearchLoading[meal] && !exactMatch && (
+                          <button
+                            type="button"
+                            className="planner-add-food"
+                            disabled={addingFoodForMeal === meal}
+                            onClick={() => void addNewFoodForMeal(meal)}
+                          >
+                            {addingFoodForMeal === meal ? "Adding food..." : `Add "${query.trim()}" and select`}
+                          </button>
+                        )}
+                      </section>
+                    );
+                  })}
+                </div>
+
+                <fieldset className="planner-preference-fieldset">
+                  <legend>Are any guests vegetarian?</legend>
+                  <label><input type="radio" name="vegetarian" required checked={isVegetarian === true} onChange={() => setIsVegetarian(true)} /> Yes</label>
+                  <label><input type="radio" name="vegetarian" required checked={isVegetarian === false} onChange={() => setIsVegetarian(false)} /> No</label>
+                </fieldset>
+
+                <fieldset className="planner-preference-fieldset">
+                  <legend>Does anyone have food allergies?</legend>
+                  <label><input type="radio" name="allergies" required checked={hasAllergies === true} onChange={() => setHasAllergies(true)} /> Yes</label>
+                  <label><input type="radio" name="allergies" required checked={hasAllergies === false} onChange={() => setHasAllergies(false)} /> No</label>
+                </fieldset>
+
+                {hasAllergies && (
+                  <label className="planner-allergy-count">
+                    Number of guests with allergies
+                    <input
+                      type="number"
+                      min="1"
+                      max={guestDateForm.guestCount}
+                      required
+                      value={allergyCount}
+                      onChange={(event) => setAllergyCount(event.target.value)}
+                    />
+                  </label>
+                )}
+
+                <label className="planner-booking-notes">
+                  Notes <span className="planner-optional">Optional</span>
+                  <textarea
+                    rows={3}
+                    maxLength={1000}
+                    value={bookingNotes}
+                    onChange={(event) => setBookingNotes(event.target.value)}
+                    placeholder="Add any other meal requests or details."
+                  />
+                </label>
+
+                {plannerError && <p className="planner-form-error" role="alert">{plannerError}</p>}
+                <div className="planner-drawer-actions">
+                  <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)} disabled={bookingSubmitting || addingFoodForMeal !== null}>Cancel</button>
+                  <button type="button" className="planner-back-button" onClick={() => { setPlannerError(""); setPlannerStep("meals"); }} disabled={bookingSubmitting || addingFoodForMeal !== null}>Back</button>
+                  <button type="submit" className="planner-primary-button" disabled={bookingSubmitting || addingFoodForMeal !== null}>
+                    {bookingSubmitting ? "Saving..." : "Confirm booking"}
+                  </button>
                 </div>
               </form>
             )}
@@ -591,16 +976,20 @@ export default function GuestDashboard() {
             {plannerStep === "complete" && (
               <div className="planner-complete">
                 <span className="planner-complete-icon"><CheckCircle2 size={26} /></span>
-                <h3>Your plan is ready</h3>
+                <h3>Your booking is saved</h3>
                 <p>Selections for {new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(selectedDate)}</p>
                 <div className="planner-complete-summary">
                   <span><b>Guests</b>{guestDateForm.guestCount} total · {guestDateForm.childCount} children</span>
                   <span><b>Drivers</b>{guestDateForm.driverCount || "0"}</span>
                   <span><b>Guides</b>{guestDateForm.guideCount || "0"}</span>
                   <span><b>Meals</b>{selectedMeals.map((meal) => `${meal === "Other" ? otherMealName.trim() : meal} · ${selectedMealTimes[meal]}`).join(", ")}</span>
+                  <span><b>Vegetarian guests</b>{isVegetarian ? "Yes" : "No"}</span>
+                  <span><b>Allergies</b>{hasAllergies ? `${allergyCount} guest(s)` : "No"}</span>
                 </div>
-                <p className="planner-demo-note">This demo form does not save details to a server.</p>
-                <button type="button" className="planner-primary-button planner-done-button" onClick={() => setPlannerOpen(false)}>Done</button>
+                {savedBooking && <p className="planner-booking-reference">Booking reference: {savedBooking.id}</p>}
+                <Link className="planner-primary-button planner-done-button" href="/dashboard/bookings" onClick={() => setPlannerOpen(false)}>
+                  View my bookings
+                </Link>
               </div>
             )}
           </aside>

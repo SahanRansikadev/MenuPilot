@@ -1,6 +1,6 @@
 # MenuPilot Backend
 
-Standalone Node.js/Express API for MenuPilot authentication. MongoDB Atlas stores users and hashed session tokens.
+Standalone Node.js/Express API for MenuPilot authentication and guest bookings. MongoDB Atlas stores users, hashed session tokens, the shared food catalog, and bookings.
 
 ## Setup
 
@@ -34,6 +34,10 @@ For local smoke testing, run `npm test`, then `npm run dev` and request `http://
 - `POST /api/auth/signin` — `{ "email": "...", "password": "..." }`
 - `GET /api/auth/me` — returns the authenticated user's name and email
 - `POST /api/auth/logout` — revokes the session and clears its cookie
+- `GET /api/foods?search=...` — searches the authenticated shared food catalog
+- `POST /api/foods` — adds a food to the catalog or returns its existing match
+- `GET /api/bookings` — lists bookings for the authenticated user
+- `POST /api/bookings` — validates and saves a booking with its meals and food selections
 - `GET /` — liveness check returning `{ "status": "ok", "message": "MenuPilot Backend is running!" }`
 - `GET /api/health` — liveness check returning `{ "success": true, "message": "MenuPilot Backend is running", "status": "OK" }`
 - Unknown routes return a JSON 404 response.
