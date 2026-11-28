@@ -67,6 +67,8 @@ type CatalogFood = {
   name: string;
 };
 
+type FoodSearchCategory = "food" | "dessert";
+
 type SavedBooking = {
   id: string;
   date: string;
@@ -98,6 +100,7 @@ export default function GuestDashboard() {
   const [foodSearchLoading, setFoodSearchLoading] = useState<Record<string, boolean>>({});
   const [foodSearchErrors, setFoodSearchErrors] = useState<Record<string, string>>({});
   const [foodsByMeal, setFoodsByMeal] = useState<Record<string, CatalogFood[]>>({});
+  const [dessertsByMeal, setDessertsByMeal] = useState<Record<string, CatalogFood[]>>({});
   const [addingFoodForMeal, setAddingFoodForMeal] = useState<string | null>(null);
   const [isVegetarian, setIsVegetarian] = useState<boolean | null>(null);
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
@@ -270,51 +273,76 @@ export default function GuestDashboard() {
         delete next[option];
         return next;
       });
+      setDessertsByMeal((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
       setFoodQueries((current) => {
         const next = { ...current };
         delete next[option];
+        delete next[`dessert:${option}`];
         return next;
       });
       setFoodResults((current) => {
         const next = { ...current };
         delete next[option];
+        delete next[`dessert:${option}`];
         return next;
       });
-      if (activeFoodSearchMeal === option) setActiveFoodSearchMeal(null);
+      setFoodSearchLoading((current) => {
+        const next = { ...current };
+        delete next[option];
+        delete next[`dessert:${option}`];
+        return next;
+      });
+      setFoodSearchErrors((current) => {
+        const next = { ...current };
+        delete next[option];
+        delete next[`dessert:${option}`];
+        return next;
+      });
+      if (activeFoodSearchMeal === option || activeFoodSearchMeal === `dessert:${option}`) {
+        setActiveFoodSearchMeal(null);
+      }
     }
     if (option === "Other" && removing) {
       setOtherMealName("");
     }
   }
 
-  function selectFoodForMeal(meal: string, food: CatalogFood) {
-    const currentFoods = foodsByMeal[meal] || [];
-    if (currentFoods.some((selected) => selected.id === food.id)) return;
-    if (currentFoods.length >= 20) {
-      setFoodSearchErrors((current) => ({ ...current, [meal]: "Choose no more than 20 foods for one meal." }));
+  function selectFoodForMeal(meal: string, food: CatalogFood, category: FoodSearchCategory = "food") {
+    const searchKey = category === "dessert" ? `dessert:${meal}` : meal;
+    const selectedFoods = foodsByMeal[meal] || [];
+    const selectedDesserts = dessertsByMeal[meal] || [];
+    if ([...selectedFoods, ...selectedDesserts].some((selected) => selected.id === food.id)) return;
+    if (selectedFoods.length + selectedDesserts.length >= 20) {
+      setFoodSearchErrors((current) => ({ ...current, [searchKey]: "Choose no more than 20 foods and desserts for one meal." }));
       return;
     }
 
-    setFoodsByMeal((current) => {
+    const setSelection = category === "dessert" ? setDessertsByMeal : setFoodsByMeal;
+    setSelection((current) => {
       const latestFoods = current[meal] || [];
-      if (latestFoods.some((selected) => selected.id === food.id) || latestFoods.length >= 20) return current;
+      if (latestFoods.some((selected) => selected.id === food.id)) return current;
       return { ...current, [meal]: [...latestFoods, food] };
     });
     setActiveFoodSearchMeal(null);
-    setFoodQueries((current) => ({ ...current, [meal]: "" }));
-    setFoodSearchErrors((current) => ({ ...current, [meal]: "" }));
+    setFoodQueries((current) => ({ ...current, [searchKey]: "" }));
+    setFoodSearchErrors((current) => ({ ...current, [searchKey]: "" }));
   }
 
-  async function addNewFoodForMeal(meal: string) {
-    const name = (foodQueries[meal] || "").trim();
+  async function addNewFoodForMeal(meal: string, category: FoodSearchCategory = "food") {
+    const searchKey = category === "dessert" ? `dessert:${meal}` : meal;
+    const name = (foodQueries[searchKey] || "").trim();
     if (!name) return;
-    if ((foodsByMeal[meal] || []).length >= 20) {
-      setFoodSearchErrors((current) => ({ ...current, [meal]: "Choose no more than 20 foods for one meal." }));
+    if ((foodsByMeal[meal] || []).length + (dessertsByMeal[meal] || []).length >= 20) {
+      setFoodSearchErrors((current) => ({ ...current, [searchKey]: "Choose no more than 20 foods and desserts for one meal." }));
       return;
     }
 
-    setAddingFoodForMeal(meal);
-    setFoodSearchErrors((current) => ({ ...current, [meal]: "" }));
+    setAddingFoodForMeal(searchKey);
+    setFoodSearchErrors((current) => ({ ...current, [searchKey]: "" }));
 
     try {
       const response = await fetch(`${API_BASE_URL}/foods`, {
@@ -333,11 +361,11 @@ export default function GuestDashboard() {
         throw new Error(result.error || "Unable to add this food.");
       }
 
-      selectFoodForMeal(meal, result.food);
+      selectFoodForMeal(meal, result.food, category);
     } catch (error) {
       setFoodSearchErrors((current) => ({
         ...current,
-        [meal]: error instanceof Error ? error.message : "Unable to add this food.",
+        [searchKey]: error instanceof Error ? error.message : "Unable to add this food.",
       }));
     } finally {
       setAddingFoodForMeal(null);
@@ -400,7 +428,7 @@ export default function GuestDashboard() {
             type,
             ...(type === "Other" ? { name: otherMealName.trim() } : {}),
             time: selectedMealTimes[type],
-            foodIds: (foodsByMeal[type] || []).map((food) => food.id),
+            foodIds: [...(foodsByMeal[type] || []), ...(dessertsByMeal[type] || [])].map((food) => food.id),
           })),
           isVegetarian,
           hasAllergies,
@@ -447,6 +475,93 @@ export default function GuestDashboard() {
     left.getFullYear() === right.getFullYear() &&
     left.getMonth() === right.getMonth() &&
     left.getDate() === right.getDate();
+
+  function renderFoodSearch(meal: string, category: FoodSearchCategory) {
+    const searchKey = category === "dessert" ? `dessert:${meal}` : meal;
+    const query = foodQueries[searchKey] || "";
+    const results = foodResults[searchKey] || [];
+    const selectedFoods = [...(foodsByMeal[meal] || []), ...(dessertsByMeal[meal] || [])];
+    const exactMatch = results.some(
+      (food) => food.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase(),
+    );
+    const label = category === "dessert" ? "Search desserts" : "Search foods";
+
+    return (
+      <>
+        <label className="planner-food-search">
+          {label}
+          <input
+            type="search"
+            maxLength={100}
+            value={query}
+            onFocus={() => setActiveFoodSearchMeal(searchKey)}
+            onChange={(event) => {
+              setFoodSearchLoading((current) => ({ ...current, [searchKey]: true }));
+              setFoodSearchErrors((current) => ({ ...current, [searchKey]: "" }));
+              setFoodResults((current) => ({ ...current, [searchKey]: [] }));
+              setFoodQueries((current) => ({ ...current, [searchKey]: event.target.value }));
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              if (exactMatch) {
+                const exactFood = results.find(
+                  (food) => food.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase(),
+                );
+                if (exactFood) selectFoodForMeal(meal, exactFood, category);
+              } else if (query.trim()) {
+                void addNewFoodForMeal(meal, category);
+              }
+            }}
+            placeholder={`Search or add ${category === "dessert" ? "a dessert" : "food"} for ${meal.toLocaleLowerCase()}...`}
+            aria-label={`${label} for ${meal}`}
+          />
+        </label>
+        {activeFoodSearchMeal === searchKey && foodSearchLoading[searchKey] && (
+          <small className="planner-food-status">Searching {category === "dessert" ? "desserts" : "foods"}...</small>
+        )}
+        {activeFoodSearchMeal === searchKey && foodSearchErrors[searchKey] && (
+          <p className="planner-form-error" role="alert">{foodSearchErrors[searchKey]}</p>
+        )}
+        {activeFoodSearchMeal === searchKey && !foodSearchLoading[searchKey] && !foodSearchErrors[searchKey] && results.length === 0 && (
+          <small className="planner-food-status">
+            {query.trim()
+              ? `No matching ${category === "dessert" ? "desserts" : "foods"} yet. Add it to the shared catalog.`
+              : `No ${category === "dessert" ? "desserts" : "foods"} in the catalog yet. Search for one to add it.`}
+          </small>
+        )}
+        {activeFoodSearchMeal === searchKey && !foodSearchLoading[searchKey] && results.length > 0 && (
+          <div className="planner-food-results" aria-label={`Available ${category === "dessert" ? "desserts" : "foods"} for ${meal}`}>
+            {results.map((food) => {
+              const alreadySelected = selectedFoods.some((selected) => selected.id === food.id);
+              return (
+                <button
+                  type="button"
+                  key={food.id}
+                  disabled={alreadySelected}
+                  onClick={() => selectFoodForMeal(meal, food, category)}
+                >
+                  {food.name}{alreadySelected ? " · Added" : ""}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {activeFoodSearchMeal === searchKey && query.trim() && !foodSearchLoading[searchKey] && !exactMatch && (
+          <button
+            type="button"
+            className="planner-add-food"
+            disabled={addingFoodForMeal === searchKey}
+            onClick={() => void addNewFoodForMeal(meal, category)}
+          >
+            {addingFoodForMeal === searchKey
+              ? `Adding ${category === "dessert" ? "dessert" : "food"}...`
+              : `Add "${query.trim()}" and select`}
+          </button>
+        )}
+      </>
+    );
+  }
 
   return (
     <main className="guest-dashboard" id="overview">
@@ -831,10 +946,8 @@ export default function GuestDashboard() {
 
                 <div className="planner-food-selections">
                   {selectedMeals.map((meal) => {
-                    const query = foodQueries[meal] || "";
-                    const results = foodResults[meal] || [];
-                    const exactMatch = results.some((food) => food.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase());
                     const selectedFoods = foodsByMeal[meal] || [];
+                    const selectedDesserts = dessertsByMeal[meal] || [];
 
                     return (
                       <section className="planner-food-card" key={meal}>
@@ -842,84 +955,50 @@ export default function GuestDashboard() {
                           <h4>{meal === "Other" ? otherMealName : meal}</h4>
                           <span>{selectedMealTimes[meal]}</span>
                         </div>
-                        <div className="planner-selected-foods">
-                          {selectedFoods.map((food) => (
-                            <span className="planner-food-chip" key={food.id}>
-                              {food.name}
-                              <button
-                                type="button"
-                                aria-label={`Remove ${food.name} from ${meal}`}
-                                onClick={() => setFoodsByMeal((current) => ({
-                                  ...current,
-                                  [meal]: (current[meal] || []).filter((selected) => selected.id !== food.id),
-                                }))}
-                              >
-                                <X size={12} />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                        <label className="planner-food-search">
-                          Search foods
-                          <input
-                            type="search"
-                            maxLength={100}
-                            value={query}
-                            onFocus={() => setActiveFoodSearchMeal(meal)}
-                            onChange={(event) => {
-                              setFoodSearchLoading((current) => ({ ...current, [meal]: true }));
-                              setFoodSearchErrors((current) => ({ ...current, [meal]: "" }));
-                              setFoodResults((current) => ({ ...current, [meal]: [] }));
-                              setFoodQueries((current) => ({ ...current, [meal]: event.target.value }));
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key !== "Enter") return;
-                              event.preventDefault();
-                              if (exactMatch) {
-                                const exactFood = results.find((food) => food.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase());
-                                if (exactFood) selectFoodForMeal(meal, exactFood);
-                              } else if (query.trim()) {
-                                void addNewFoodForMeal(meal);
-                              }
-                            }}
-                            placeholder={`Search or add food for ${meal.toLocaleLowerCase()}...`}
-                            aria-label={`Search foods for ${meal}`}
-                          />
-                        </label>
-                        {activeFoodSearchMeal === meal && foodSearchLoading[meal] && <small className="planner-food-status">Searching foods...</small>}
-                        {activeFoodSearchMeal === meal && foodSearchErrors[meal] && <p className="planner-form-error" role="alert">{foodSearchErrors[meal]}</p>}
-                        {activeFoodSearchMeal === meal && !foodSearchLoading[meal] && !foodSearchErrors[meal] && results.length === 0 && (
-                          <small className="planner-food-status">
-                            {query.trim() ? "No matching foods yet. Add it to the shared catalog." : "No foods in the catalog yet. Search for a food to add it."}
-                          </small>
-                        )}
-                        {activeFoodSearchMeal === meal && !foodSearchLoading[meal] && results.length > 0 && (
-                          <div className="planner-food-results" aria-label={`Available foods for ${meal}`}>
-                            {results.map((food) => {
-                              const alreadySelected = selectedFoods.some((selected) => selected.id === food.id);
-                              return (
+                        {selectedFoods.length > 0 && (
+                          <div className="planner-selected-foods">
+                            {selectedFoods.map((food) => (
+                              <span className="planner-food-chip" key={food.id}>
+                                {food.name}
                                 <button
                                   type="button"
-                                  key={food.id}
-                                  disabled={alreadySelected}
-                                  onClick={() => selectFoodForMeal(meal, food)}
+                                  aria-label={`Remove ${food.name} from ${meal}`}
+                                  onClick={() => setFoodsByMeal((current) => ({
+                                    ...current,
+                                    [meal]: (current[meal] || []).filter((selected) => selected.id !== food.id),
+                                  }))}
                                 >
-                                  {food.name}{alreadySelected ? " · Added" : ""}
+                                  <X size={12} />
                                 </button>
-                              );
-                            })}
+                              </span>
+                            ))}
                           </div>
                         )}
-                        {activeFoodSearchMeal === meal && query.trim() && !foodSearchLoading[meal] && !exactMatch && (
-                          <button
-                            type="button"
-                            className="planner-add-food"
-                            disabled={addingFoodForMeal === meal}
-                            onClick={() => void addNewFoodForMeal(meal)}
-                          >
-                            {addingFoodForMeal === meal ? "Adding food..." : `Add "${query.trim()}" and select`}
-                          </button>
+                        {renderFoodSearch(meal, "food")}
+                        {selectedDesserts.length > 0 && (
+                          <div className="planner-selected-foods planner-selected-desserts">
+                            <span className="planner-dessert-caption">Selected desserts</span>
+                            {selectedDesserts.map((food) => (
+                              <span className="planner-food-chip" key={food.id}>
+                                {food.name}
+                                <button
+                                  type="button"
+                                  aria-label={`Remove ${food.name} from ${meal} desserts`}
+                                  onClick={() => setDessertsByMeal((current) => ({
+                                    ...current,
+                                    [meal]: (current[meal] || []).filter((selected) => selected.id !== food.id),
+                                  }))}
+                                >
+                                  <X size={12} />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
                         )}
+                        <div className="planner-dessert-heading">
+                          <b>Desserts</b><span>Optional</span>
+                        </div>
+                        {renderFoodSearch(meal, "dessert")}
                       </section>
                     );
                   })}
