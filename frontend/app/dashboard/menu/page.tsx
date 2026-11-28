@@ -27,15 +27,15 @@ const navigation = [
   { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];
 
-const properties = [
+const demoProperties = [
   {
     name: "Villa Serene",
     location: "Galle, Southern Province",
     description: "A relaxed coastal menu featuring fresh local ingredients.",
     meals: [
-      { name: "Breakfast", items: "Coconut pancakes, tropical fruit platter, string hoppers with dhal", note: "Vegetarian options available", Icon: Coffee },
-      { name: "Lunch", items: "Grilled catch of the day, red rice, garden salad, lime curry", note: "Fresh seafood · Vegan curry on request", Icon: Soup },
-      { name: "Dinner", items: "Roast chicken with herbs, jackfruit curry, watalappan", note: "Ask about today's catch", Icon: Utensils },
+      { name: "Breakfast", foods: ["Coconut pancakes", "Tropical fruit platter", "String hoppers with dhal"], desserts: [], note: "Vegetarian options available", Icon: Coffee },
+      { name: "Lunch", foods: ["Grilled catch of the day", "Red rice", "Garden salad", "Lime curry"], desserts: [], note: "Fresh seafood · Vegan curry on request", Icon: Soup },
+      { name: "Dinner", foods: ["Roast chicken with herbs", "Jackfruit curry"], desserts: ["Watalappan"], note: "Ask about today's catch", Icon: Utensils },
     ],
   },
   {
@@ -43,9 +43,9 @@ const properties = [
     location: "Colombo, Western Province",
     description: "A bright city stay with Sri Lankan favourites and light bites.",
     meals: [
-      { name: "Breakfast", items: "Egg hoppers, pol roti, seasonal fruit, Ceylon tea", note: "Gluten-free choices available", Icon: Coffee },
-      { name: "Lunch", items: "Chicken biryani, cashew curry, cucumber sambol", note: "Vegetarian biryani available", Icon: Soup },
-      { name: "Dinner", items: "Pepper crab, coconut rice, mixed vegetable curry, curd and treacle", note: "Seafood · Dairy-free dessert available", Icon: Utensils },
+      { name: "Breakfast", foods: ["Egg hoppers", "Pol roti", "Seasonal fruit", "Ceylon tea"], desserts: [], note: "Gluten-free choices available", Icon: Coffee },
+      { name: "Lunch", foods: ["Chicken biryani", "Cashew curry", "Cucumber sambol"], desserts: [], note: "Vegetarian biryani available", Icon: Soup },
+      { name: "Dinner", foods: ["Pepper crab", "Coconut rice", "Mixed vegetable curry"], desserts: ["Curd and treacle"], note: "Seafood · Dairy-free dessert available", Icon: Utensils },
     ],
   },
   {
@@ -53,9 +53,9 @@ const properties = [
     location: "Ella, Uva Province",
     description: "Comforting hill-country dishes made with seasonal produce.",
     meals: [
-      { name: "Breakfast", items: "Warm oats, local honey, fresh fruit, vegetable omelette", note: "Vegan breakfast available", Icon: Coffee },
-      { name: "Lunch", items: "Pumpkin soup, roast vegetable wraps, green salad", note: "Vegetarian · Gluten-free on request", Icon: Soup },
-      { name: "Dinner", items: "Black pork curry, red rice, beetroot curry, jaggery pudding", note: "A mild curry option is available", Icon: Utensils },
+      { name: "Breakfast", foods: ["Warm oats", "Local honey", "Fresh fruit", "Vegetable omelette"], desserts: [], note: "Vegan breakfast available", Icon: Coffee },
+      { name: "Lunch", foods: ["Pumpkin soup", "Roast vegetable wraps", "Green salad"], desserts: [], note: "Vegetarian · Gluten-free on request", Icon: Soup },
+      { name: "Dinner", foods: ["Black pork curry", "Red rice", "Beetroot curry"], desserts: ["Jaggery pudding"], note: "A mild curry option is available", Icon: Utensils },
     ],
   },
   {
@@ -63,12 +63,26 @@ const properties = [
     location: "Bentota, Southern Province",
     description: "A tropical resort menu with beachside classics and island flavours.",
     meals: [
-      { name: "Breakfast", items: "Pittu, coconut sambol, banana pancakes, fresh juice", note: "Vegan options available", Icon: Coffee },
-      { name: "Lunch", items: "Tuna steak, lemon rice, grilled vegetables, passionfruit salad", note: "Fresh catch · Vegetarian plate available", Icon: Soup },
-      { name: "Dinner", items: "Seafood curry, string hoppers, lentil dhal, coconut cream tart", note: "Mild and spicy versions available", Icon: Utensils },
+      { name: "Breakfast", foods: ["Pittu", "Coconut sambol", "Banana pancakes", "Fresh juice"], desserts: [], note: "Vegan options available", Icon: Coffee },
+      { name: "Lunch", foods: ["Tuna steak", "Lemon rice", "Grilled vegetables", "Passionfruit salad"], desserts: [], note: "Fresh catch · Vegetarian plate available", Icon: Soup },
+      { name: "Dinner", foods: ["Seafood curry", "String hoppers", "Lentil dhal"], desserts: ["Coconut cream tart"], note: "Mild and spicy versions available", Icon: Utensils },
     ],
   },
 ];
+
+type MenuGroup = {
+  hotelName: string;
+  mealType: string;
+  foods: string[];
+  desserts: string[];
+  description: string;
+};
+
+type HotelBranch = {
+  id: string;
+  name: string;
+  location: string;
+};
 
 type AuthenticatedUser = {
   id: string;
@@ -82,6 +96,9 @@ export default function MenuPage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState("");
+  const [managedMenus, setManagedMenus] = useState<MenuGroup[] | null>(null);
+  const [menuError, setMenuError] = useState("");
+  const [hotelLocations, setHotelLocations] = useState<Record<string, string>>({});
   const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -117,6 +134,49 @@ export default function MenuPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (authLoading) return;
+    let active = true;
+
+    async function loadMenus() {
+      try {
+        const [menuResponse, hotelResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/menus`, { credentials: "include" }),
+          fetch(`${API_BASE_URL}/hotels`, { credentials: "include" }),
+        ]);
+        if (menuResponse.status === 401 || hotelResponse.status === 401) {
+          router.replace("/");
+          return;
+        }
+        const menuResult: { menus?: MenuGroup[]; error?: string } = await menuResponse.json();
+        const hotelResult: { hotels?: HotelBranch[]; error?: string } = await hotelResponse.json();
+        if (!menuResponse.ok || !menuResult.menus) {
+          throw new Error(menuResult.error || "Unable to load hotel menus.");
+        }
+        if (!hotelResponse.ok || !hotelResult.hotels) {
+          throw new Error(hotelResult.error || "Unable to load hotel details.");
+        }
+        if (active) {
+          const locationByHotel = new Map(hotelResult.hotels.map((hotel) => [hotel.name.toLocaleLowerCase(), hotel.location]));
+          setManagedMenus(menuResult.menus.map((menu) => ({
+            ...menu,
+            description: menu.description || "",
+            foods: menu.foods || [],
+            desserts: menu.desserts || [],
+          })));
+          setHotelLocations(Object.fromEntries(locationByHotel));
+        }
+      } catch (error) {
+        if (active) setMenuError(error instanceof Error ? error.message : "Unable to load hotel menus.");
+      }
+    }
+
+    void loadMenus();
+    return () => {
+      active = false;
+    };
+  }, [authLoading, router]);
+
   async function handleSignOut() {
     setSigningOut(true);
     setAuthError("");
@@ -141,6 +201,33 @@ export default function MenuPage() {
     .join("")
     .slice(0, 2)
     .toUpperCase() || "MP";
+  const displayProperties = managedMenus === null
+    ? []
+    : managedMenus.length === 0
+      ? demoProperties
+      : Array.from(managedMenus.reduce((grouped, menu) => {
+          const property = grouped.get(menu.hotelName) || {
+            name: menu.hotelName,
+            location: hotelLocations[menu.hotelName.toLocaleLowerCase()] || "",
+            description: "Browse the available recipes by meal type.",
+            meals: [] as Array<{ name: string; foods: string[]; desserts: string[]; note: string; Icon: typeof Coffee }>,
+          };
+          const Icon = menu.mealType === "Breakfast" ? Coffee : menu.mealType === "Dinner" ? Utensils : Soup;
+          property.meals.push({
+            name: menu.mealType,
+            foods: menu.foods,
+            desserts: menu.desserts,
+            note: menu.description,
+            Icon,
+          });
+          grouped.set(menu.hotelName, property);
+          return grouped;
+        }, new Map<string, {
+          name: string;
+          location: string;
+          description: string;
+          meals: Array<{ name: string; foods: string[]; desserts: string[]; note: string; Icon: typeof Coffee }>;
+        }>()).values());
 
   return (
     <main className="guest-dashboard">
@@ -185,6 +272,7 @@ export default function MenuPage() {
         <header className="dashboard-topbar">
           <div className="dashboard-breadcrumb">
             <button className="dashboard-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><MenuIcon size={20} /></button>
+            <span className="dashboard-brand-icon menu-header-logo" aria-hidden="true" />
             <span>Workspace</span><ChevronRight size={15} /><b>Menus</b>
           </div>
           <div className="dashboard-top-actions">
@@ -202,18 +290,20 @@ export default function MenuPage() {
             <div>
               <div className="dashboard-eyebrow"><i /> MENUS BY PROPERTY</div>
               <h1>Property menus</h1>
-              <p>Browse sample menus for each hotel and venue.</p>
+              <p>Browse each hotel's meal types and available recipes.</p>
             </div>
           </section>
           {authError && <p className="dashboard-auth-error" role="alert">{authError}</p>}
+          {menuError && <p className="dashboard-auth-error" role="alert">{menuError}</p>}
+          {managedMenus === null && !menuError && <p className="section-booking-message">Loading hotel menus...</p>}
           <section className="menu-grid" aria-label="Hotel menus">
-            {properties.map((property) => {
+            {displayProperties.map((property) => {
               const isExpanded = expandedProperty === property.name;
               return (
-                <article className="menu-property-card" key={property.name}>
+                <article className="menu-property-card menu-book-property" key={property.name}>
                   <div className="menu-property-heading">
                     <div><h2>{property.name}</h2><p>{property.location}</p></div>
-                    <span className="menu-demo-badge">DEMO MENU</span>
+                    <span className="menu-demo-badge">{managedMenus?.length ? "HOTEL MENU" : "DEMO MENU"}</span>
                   </div>
                   <p className="menu-property-description">{property.description}</p>
                   <button
@@ -222,23 +312,29 @@ export default function MenuPage() {
                     aria-expanded={isExpanded}
                     onClick={() => setExpandedProperty(isExpanded ? null : property.name)}
                   >
-                    {isExpanded ? "Hide menu" : "View menu"} <ArrowUpRight size={14} />
+                    {isExpanded ? "Close menu" : "View menu"} <ArrowUpRight size={14} />
                   </button>
                   {isExpanded && (
-                    <div className="menu-meal-list">
-                      {property.meals.map(({ name, items, note, Icon }) => (
-                        <div className="menu-meal" key={name}>
-                          <span className="menu-meal-icon"><Icon size={15} /></span>
-                          <div><h3>{name}</h3><p>{items}</p><small>{note}</small></div>
-                        </div>
-                      ))}
+                    <div className="menu-book">
+                      <div className="menu-book-title"><span>MENUPILOT · {property.name.toUpperCase()}</span><h3>Today's Menu</h3><p>Carefully prepared for your stay</p></div>
+                      <div className="menu-meal-list">
+                        {property.meals.map(({ name, foods, desserts, note, Icon }) => (
+                          <section className="menu-meal" key={name}>
+                            <div className="menu-meal-heading"><span className="menu-meal-icon"><Icon size={15} /></span><div><h4>{name}</h4><small>MENU SELECTION</small></div></div>
+                            {!!foods.length && <div className="menu-recipe-category"><h5>Foods</h5><ul>{foods.map((recipe, index) => <li key={`${recipe}-${index}`}>{recipe}</li>)}</ul></div>}
+                            {!!desserts.length && <div className="menu-recipe-category dessert"><h5>Desserts</h5><ul>{desserts.map((recipe, index) => <li key={`${recipe}-${index}`}>{recipe}</li>)}</ul></div>}
+                            {!foods.length && !desserts.length && <p className="menu-no-recipes">Menu selections will be added soon.</p>}
+                            {note && <p className="menu-meal-note">{note}</p>}
+                          </section>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </article>
               );
             })}
           </section>
-          <p className="menu-demo-note">Sample menus are for demonstration only. Menu items and dietary options may vary by property.</p>
+          {managedMenus?.length === 0 && <p className="menu-demo-note">Sample menus are for demonstration only. Menu items and dietary options may vary by property.</p>}
           <footer className="dashboard-footer"><span>© 2026 MenuPilot Guest Portal</span><span>Made for memorable moments <span className="footer-heart">♥</span></span></footer>
         </div>
       </section>

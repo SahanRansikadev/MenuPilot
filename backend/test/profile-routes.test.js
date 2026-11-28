@@ -36,6 +36,8 @@ test("authenticated guests can load and save a profile with their account identi
       childrenCount: 1,
       countryCode: "LK",
       feedback: "Helpful hotel team.",
+      feedbackReply: "",
+      feedbackLiked: false,
     });
     assert.equal(options.runValidators, true);
     updatedUser = {

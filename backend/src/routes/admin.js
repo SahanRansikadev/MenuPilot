@@ -34,10 +34,18 @@ function serializeUser(user) {
 }
 
 function serializeMenu(menu) {
+  const recipeNames = menu.recipeNames && menu.recipeNames.length
+    ? menu.recipeNames
+    : menu.name ? [menu.name] : [];
+  const hasCategorizedRecipes = Boolean(menu.foods?.length || menu.desserts?.length);
+  const foods = hasCategorizedRecipes ? menu.foods || [] : recipeNames;
   return {
     id: menu._id.toString(),
     hotelName: menu.hotelName,
-    name: menu.name,
+    name: menu.name || recipeNames[0] || "",
+    recipeNames,
+    foods,
+    desserts: menu.desserts || [],
     mealType: menu.mealType,
     description: menu.description || "",
     ingredients: menu.ingredients || [],
@@ -644,11 +652,11 @@ router.post("/kitchen/tasks", async (req, res) => {
       bookingId,
       menuId,
       hotelName: menu.hotelName,
-      recipeName: menu.name,
+      recipeName: menu.recipeNames?.[0] || menu.name,
       mealType: menu.mealType,
       description: menu.description,
-      ingredients: menu.ingredients,
-      instructions: menu.instructions,
+      ingredients: menu.ingredients || [],
+      instructions: menu.instructions || "",
       notes: notes.trim(),
       createdBy: req.userId,
     });
