@@ -77,6 +77,7 @@ test("confirms the saved user before returning registration success", async (t) 
     id: userId.toString(),
     name: "Test User",
     email: "test@example.com",
+    role: "guest",
   });
   assert.notEqual(createdUser.passwordHash, "password123");
   assert.equal(await bcrypt.compare("password123", createdUser.passwordHash), true);

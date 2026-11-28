@@ -1,6 +1,6 @@
 # MenuPilot Backend
 
-Standalone Node.js/Express API for MenuPilot authentication and guest bookings. MongoDB Atlas stores users, hashed session tokens, the shared food catalog, and bookings.
+Standalone Node.js/Express API for MenuPilot authentication, guest bookings, administration, menus, and kitchen tasks. MongoDB Atlas stores users and their roles, hashed session tokens, the shared food catalog, menus, bookings, and kitchen tasks.
 
 ## Setup
 
@@ -9,6 +9,19 @@ Standalone Node.js/Express API for MenuPilot authentication and guest bookings. 
 3. Edit `.env` and set `MONGODB_URI` to your MongoDB Atlas connection string. `.env` is loaded only by the local development server; it is ignored by Git.
 4. Ensure Atlas Network Access allows the backend to connect.
 5. Run `npm run dev` for development or `npm start` to start the API.
+
+## Initial administrator
+
+Sign up the account that should become the first administrator, then promote that account once in MongoDB Atlas (or `mongosh`):
+
+```js
+db.users.updateOne(
+  { email: "admin@example.com" },
+  { $set: { role: "admin" } }
+)
+```
+
+Confirm `matchedCount` and `modifiedCount` are both `1`. The account can then sign in and open `/dashboard/admin`. New sign-ups always receive the `guest` role; users cannot select or grant themselves a role. Admins can assign `admin`, `kitchenTeam`, or `guest` roles from User management. The last administrator cannot be demoted.
 
 The API listens on port `5000` by default. `FRONTEND_URL` accepts a comma-separated list of exact frontend origins (for example, `http://localhost:3000,https://your-frontend.vercel.app`); do not use a wildcard for credentialed CORS.
 `MONGODB_DB_NAME` is an optional explicit database override. If unset, the app uses the database path in `MONGODB_URI`; only when the URI has no database path does it default to `menupilot`.
@@ -34,6 +47,13 @@ For local smoke testing, run `npm test`, then `npm run dev` and request `http://
 - `POST /api/auth/signin` — `{ "email": "...", "password": "..." }`
 - `GET /api/auth/me` — returns the authenticated user's name and email
 - `POST /api/auth/logout` — revokes the session and clears its cookie
+- `GET /api/admin/users` — admin-only account list
+- `PATCH /api/admin/users/:id/role` — admin-only role management
+- `GET /api/admin/bookings` and `PATCH /api/admin/bookings/:id/status` — admin booking management
+- `GET /api/admin/menus`, `POST /api/admin/menus`, `PUT /api/admin/menus/:id`, `DELETE /api/admin/menus/:id` — admin menu and recipe management
+- `GET /api/admin/kitchen/tasks` and `POST /api/admin/kitchen/tasks` — assign a menu recipe and its ingredient list to a kitchen team member for a booking
+- `GET /api/kitchen/tasks` — kitchen-team member's assigned tasks
+- `PATCH /api/kitchen/tasks/:id/status` — kitchen team advances an assigned task through accepted, preparing, and ready
 - `GET /api/foods?search=...` — searches the authenticated shared food catalog
 - `POST /api/foods` — adds a food to the catalog or returns its existing match
 - `GET /api/bookings` — lists bookings for the authenticated user

@@ -1,97 +1,217 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   Bell,
   CalendarDays,
-  Check,
-  ChevronDown,
-  ChevronLeft,
+  CheckCircle2,
   ChevronRight,
   CircleHelp,
   LayoutDashboard,
-  Leaf,
   LogOut,
-  Mail,
   Menu,
-  Search,
-  SlidersHorizontal,
+  Save,
   Utensils,
   Users,
   X,
 } from "lucide-react";
+import { API_BASE_URL } from "../../../lib/api";
 
-type GuestStatus = "Confirmed" | "Pending" | "Checked out" | "Cancelled";
-
-type Guest = {
-  id: number;
-  name: string;
-  email: string;
-  initials: string;
-  booking: string;
-  preference: string;
-  status: GuestStatus;
-  joined: string;
-};
-
-const initialGuests: Guest[] = [
-  { id: 1, name: "Maya Perera", email: "maya.perera@email.com", initials: "MP", booking: "Villa Serene", preference: "Vegetarian", status: "Confirmed", joined: "Nov 14, 2026" },
-  { id: 2, name: "Noah Williams", email: "noah.w@email.com", initials: "NW", booking: "Harbor House", preference: "No restrictions", status: "Confirmed", joined: "Nov 13, 2026" },
-  { id: 3, name: "Asha Fernando", email: "asha.fernando@email.com", initials: "AF", booking: "Mountain Table", preference: "Vegan", status: "Pending", joined: "Nov 12, 2026" },
-  { id: 4, name: "Liam Chen", email: "liam.chen@email.com", initials: "LC", booking: "Villa Serene", preference: "Gluten-free", status: "Confirmed", joined: "Nov 11, 2026" },
-  { id: 5, name: "Sofia Patel", email: "sofia.patel@email.com", initials: "SP", booking: "Golden Palm", preference: "No restrictions", status: "Checked out", joined: "Nov 10, 2026" },
-  { id: 6, name: "Ravi Jayasinghe", email: "ravi.j@email.com", initials: "RJ", booking: "Garden dinner", preference: "Vegetarian", status: "Pending", joined: "Nov 09, 2026" },
-  { id: 7, name: "Emma Johnson", email: "emma.j@email.com", initials: "EJ", booking: "Harbor House", preference: "Dairy-free", status: "Confirmed", joined: "Nov 08, 2026" },
-  { id: 8, name: "Daniel Kim", email: "daniel.kim@email.com", initials: "DK", booking: "Mountain Table", preference: "No restrictions", status: "Cancelled", joined: "Nov 07, 2026" },
-  { id: 9, name: "Nisha Silva", email: "nisha.silva@email.com", initials: "NS", booking: "Golden Palm", preference: "Vegan", status: "Confirmed", joined: "Nov 06, 2026" },
-  { id: 10, name: "Oliver Brown", email: "oliver.b@email.com", initials: "OB", booking: "Villa Serene", preference: "No restrictions", status: "Pending", joined: "Nov 05, 2026" },
-];
-
-const preferences = ["No restrictions", "Vegetarian", "Vegan", "Gluten-free", "Dairy-free"];
-const pageSize = 5;
-
-const dashboardLinks = [
+const navigation = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
-  { label: "Guests", href: "/dashboard/guests", Icon: Users },
+  { label: "Guest profile", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
   { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];
 
-export default function GuestManagementPage() {
+const countryCodes = [
+  "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW",
+].flatMap((codes) => codes.split(" "));
+
+const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+const countries = countryCodes
+  .map((code) => ({ code, name: regionNames.of(code) || code }))
+  .sort((left, right) => left.name.localeCompare(right.name));
+
+type GuestProfile = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  guestCount: number;
+  childrenCount: number;
+  countryCode: string;
+  feedback: string;
+};
+
+type ProfileForm = {
+  phone: string;
+  guestCount: string;
+  childrenCount: string;
+  countryCode: string;
+  feedback: string;
+};
+
+function countryFlag(countryCode: string) {
+  if (!/^[A-Z]{2}$/.test(countryCode)) return "🌐";
+  return Array.from(countryCode, (letter) =>
+    String.fromCodePoint(letter.charCodeAt(0) + 127397),
+  ).join("");
+}
+
+export default function GuestProfilePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [guests, setGuests] = useState(initialGuests);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All statuses");
-  const [preferenceFilter, setPreferenceFilter] = useState("All preferences");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+  const [profile, setProfile] = useState<GuestProfile | null>(null);
+  const [form, setForm] = useState<ProfileForm>({
+    phone: "",
+    guestCount: "1",
+    childrenCount: "0",
+    countryCode: "",
+    feedback: "",
+  });
+  const [isSriLankan, setIsSriLankan] = useState<boolean | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [formMessage, setFormMessage] = useState("");
+  const pathname = usePathname();
+  const router = useRouter();
 
-  const filteredGuests = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return guests.filter((guest) => {
-      const matchesSearch = !query || [guest.name, guest.email, guest.booking].some((value) => value.toLowerCase().includes(query));
-      const matchesStatus = statusFilter === "All statuses" || guest.status === statusFilter;
-      const matchesPreference = preferenceFilter === "All preferences" || guest.preference === preferenceFilter;
-      return matchesSearch && matchesStatus && matchesPreference;
-    });
-  }, [guests, preferenceFilter, search, statusFilter]);
+  useEffect(() => {
+    let active = true;
 
-  const pageCount = Math.max(1, Math.ceil(filteredGuests.length / pageSize));
-  const pageGuests = filteredGuests.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const firstItem = filteredGuests.length ? (currentPage - 1) * pageSize + 1 : 0;
-  const lastItem = Math.min(currentPage * pageSize, filteredGuests.length);
-  const confirmedCount = guests.filter((guest) => guest.status === "Confirmed").length;
-  const pendingCount = guests.filter((guest) => guest.status === "Pending").length;
-  const preferenceCount = guests.filter((guest) => guest.preference !== "No restrictions").length;
+    async function loadProfile() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" });
+        if (response.status === 401) {
+          router.replace("/");
+          return;
+        }
 
-  const closeModal = () => setSelectedGuest(null);
+        const result: { user?: GuestProfile; error?: string } = await response.json();
+        if (!response.ok || !result.user) {
+          throw new Error(result.error || "Unable to load your guest profile.");
+        }
+        if (active) {
+          const user = result.user;
+          setProfile(user);
+          setForm({
+            phone: user.phone || "",
+            guestCount: String(user.guestCount || 1),
+            childrenCount: String(user.childrenCount || 0),
+            countryCode: user.countryCode || "",
+            feedback: user.feedback || "",
+          });
+          setIsSriLankan(user.countryCode ? user.countryCode === "LK" : null);
+          setProfileSaved(Boolean(user.phone && user.countryCode));
+        }
+      } catch (error) {
+        if (active) {
+          setFormError(error instanceof Error ? error.message : "Unable to load your guest profile.");
+        }
+      } finally {
+        if (active) setPageLoading(false);
+      }
+    }
+
+    void loadProfile();
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError("");
+    setFormMessage("");
+
+    if (isSriLankan === null) {
+      setFormError("Choose whether you are a Sri Lankan guest.");
+      return;
+    }
+    if (!isSriLankan && !form.countryCode) {
+      setFormError("Choose your country.");
+      return;
+    }
+    if (Number(form.childrenCount) > Number(form.guestCount)) {
+      setFormError("Child count cannot be more than the total guest count.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: form.phone,
+          guestCount: Number(form.guestCount),
+          childrenCount: Number(form.childrenCount),
+          countryCode: isSriLankan ? "LK" : form.countryCode,
+          feedback: form.feedback,
+        }),
+      });
+      const result: { user?: GuestProfile; error?: string } = await response.json();
+      if (!response.ok || !result.user) {
+        throw new Error(result.error || "Unable to save your guest profile.");
+      }
+
+      setProfile(result.user);
+      setForm({
+        phone: result.user.phone || "",
+        guestCount: String(result.user.guestCount),
+        childrenCount: String(result.user.childrenCount),
+        countryCode: result.user.countryCode,
+        feedback: result.user.feedback || "",
+      });
+      setIsSriLankan(result.user.countryCode === "LK");
+      setProfileSaved(true);
+      setFormMessage("Your guest profile has been saved.");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to save your guest profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    setFormError("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const result: { error?: string } = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to sign out.");
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to sign out.");
+      setSigningOut(false);
+    }
+  }
+
+  const initials = profile?.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "MP";
 
   return (
-    <main className="guest-dashboard" id="guest-management">
-      {sidebarOpen && <button className="dashboard-scrim" onClick={() => setSidebarOpen(false)} aria-label="Close navigation" />}
-
+    <main className="guest-dashboard">
+      {sidebarOpen && (
+        <button className="dashboard-scrim" onClick={() => setSidebarOpen(false)} aria-label="Close navigation" />
+      )}
       <aside className={`guest-sidebar${sidebarOpen ? " is-open" : ""}`}>
         <Link className="dashboard-brand" href="/dashboard">
           <span className="dashboard-brand-icon" aria-hidden="true" />
@@ -100,24 +220,21 @@ export default function GuestManagementPage() {
         <button className="dashboard-sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
 
         <div className="guest-profile">
-          <span className="guest-avatar">AM</span>
-          <span><b>Alex Morgan</b><small>Workspace manager</small></span>
-          <ChevronDown size={15} />
+          <span className="guest-avatar">{initials}</span>
+          <span><b>{profile?.name || (pageLoading ? "Loading..." : "Guest profile")}</b><small>{profile?.email || "Your account"}</small></span>
         </div>
 
         <div className="sidebar-label">WORKSPACE</div>
-        <nav className="dashboard-nav" aria-label="Dashboard navigation">
-          {dashboardLinks.map(({ label, href, Icon }) => (
+        <nav className="dashboard-nav" aria-label="Guest dashboard">
+          {navigation.map(({ label, href, Icon }) => (
             <Link
               key={label}
-              className={label === "Guests" ? "active" : ""}
-              aria-current={label === "Guests" ? "page" : undefined}
+              className={pathname === href ? "active" : ""}
+              aria-current={pathname === href ? "page" : undefined}
               href={href}
               onClick={() => setSidebarOpen(false)}
             >
-              <Icon size={18} />
-              <span>{label}</span>
-              {label === "Guests" && <span className="nav-count">{guests.length}</span>}
+              <Icon size={18} /><span>{label}</span>
             </Link>
           ))}
         </nav>
@@ -128,9 +245,9 @@ export default function GuestManagementPage() {
             <div><b>Need a hand?</b><small>Our team is here to help.</small></div>
             <a href="/#contact" aria-label="Contact support"><ArrowUpRight size={16} /></a>
           </div>
-          <Link className="sidebar-logout" href="/">
-            <LogOut size={17} /> Back to MenuPilot
-          </Link>
+          <button className="sidebar-logout" onClick={handleSignOut} disabled={signingOut}>
+            <LogOut size={17} /> {signingOut ? "Signing out..." : "Sign out"}
+          </button>
         </div>
       </aside>
 
@@ -138,134 +255,181 @@ export default function GuestManagementPage() {
         <header className="dashboard-topbar">
           <div className="dashboard-breadcrumb">
             <button className="dashboard-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
-            <span>Workspace</span><ChevronRight size={15} /><b>Guest management</b>
+            <span>Workspace</span><ChevronRight size={15} /><b>Guest profile</b>
           </div>
           <div className="dashboard-top-actions">
             <span className="dashboard-date">Friday, 27 November 2026</span>
             <button className="dashboard-bell" aria-label="Notifications"><Bell size={19} /><i /></button>
-            <span className="top-avatar">AM</span>
+            <div className="dashboard-account">
+              <span className="top-avatar">{initials}</span>
+              <span className="dashboard-account-info">
+                <b>{profile?.name || (pageLoading ? "Loading..." : "Account unavailable")}</b>
+                <small>{profile?.email || ""}</small>
+              </span>
+            </div>
           </div>
         </header>
 
-        <div className="dashboard-content guest-management-content">
-          <section className="dashboard-welcome guest-management-heading">
+        <div className="dashboard-content dashboard-section-content">
+          <section className="dashboard-welcome">
             <div>
-              <div className="dashboard-eyebrow"><i /> PEOPLE & BOOKINGS</div>
-              <h1>Guest management</h1>
-              <p>Keep guest details, bookings, and preferences all in one place.</p>
+              <div className="dashboard-eyebrow"><i /> YOUR MENUPILOT ACCOUNT</div>
+              <h1>Guest profile</h1>
+              <p>Keep your contact and stay details up to date.</p>
             </div>
-            <Link className="dashboard-plan-link add-guest-button" href="/dashboard/guests/new">
-              <Users size={16} /> Add guest
-            </Link>
           </section>
 
-          <section className="guest-management-stats" aria-label="Guest summary">
-            <article><span className="guest-stat-icon blue"><Users size={17} /></span><span className="guest-stat-label">Total guests</span><b>{guests.length.toString().padStart(2, "0")}</b><small>Across all bookings</small></article>
-            <article><span className="guest-stat-icon green"><Check size={17} /></span><span className="guest-stat-label">Confirmed</span><b>{confirmedCount.toString().padStart(2, "0")}</b><small>Ready for their stay</small></article>
-            <article><span className="guest-stat-icon gold"><CalendarDays size={17} /></span><span className="guest-stat-label">Pending</span><b>{pendingCount.toString().padStart(2, "0")}</b><small>Awaiting confirmation</small></article>
-            <article><span className="guest-stat-icon violet"><Leaf size={17} /></span><span className="guest-stat-label">Dietary preferences</span><b>{preferenceCount.toString().padStart(2, "0")}</b><small>Preferences on file</small></article>
-          </section>
+          {formError && <p className="dashboard-auth-error" role="alert">{formError}</p>}
 
-          <section className="guest-list-card">
-            <div className="guest-list-heading">
-              <div><h2>All guests <span>{filteredGuests.length}</span></h2><p>Search and manage the people connected to your bookings.</p></div>
-              <div className="guest-list-tools-label"><SlidersHorizontal size={15} /> List controls</div>
-            </div>
-
-            <div className="guest-list-controls">
-              <label className="guest-search">
-                <Search size={17} />
-                <input
-                  type="search"
-                  placeholder="Search name, email or booking..."
-                  value={search}
-                  onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }}
-                  aria-label="Search guests"
-                />
-              </label>
-              <label className="guest-filter">
-                <span>Status</span>
-                <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setCurrentPage(1); }}>
-                  <option>All statuses</option>
-                  <option>Confirmed</option>
-                  <option>Pending</option>
-                  <option>Checked out</option>
-                  <option>Cancelled</option>
-                </select>
-              </label>
-              <label className="guest-filter preference-filter">
-                <span>Dietary needs</span>
-                <select value={preferenceFilter} onChange={(event) => { setPreferenceFilter(event.target.value); setCurrentPage(1); }}>
-                  <option>All preferences</option>
-                  {preferences.map((preference) => <option key={preference}>{preference}</option>)}
-                </select>
-              </label>
-            </div>
-
-            <div className="guest-table-wrap">
-              <table className="guest-table">
-                <thead>
-                  <tr><th>GUEST</th><th>BOOKING</th><th>DIETARY NEEDS</th><th>STATUS</th><th>ADDED</th><th><span className="visually-hidden">Actions</span></th></tr>
-                </thead>
-                <tbody>
-                  {pageGuests.map((guest) => (
-                    <tr key={guest.id}>
-                      <td className="guest-person-cell" data-label="Guest">
-                        <span className={`guest-list-avatar avatar-${guest.id % 5}`}>{guest.initials}</span>
-                        <span className="guest-person-copy"><b>{guest.name}</b><small>{guest.email}</small></span>
-                      </td>
-                      <td data-label="Booking"><span className="guest-booking-name">{guest.booking}</span></td>
-                      <td data-label="Dietary needs"><span className="guest-preference"><Leaf size={13} />{guest.preference}</span></td>
-                      <td data-label="Status"><span className={`guest-status status-${guest.status.toLowerCase().replace(/\s+/g, "-")}`}>{guest.status}</span></td>
-                      <td data-label="Added"><span className="guest-added-date">{guest.joined}</span></td>
-                      <td className="guest-row-actions" data-label="Actions">
-                        <button className="guest-row-action" onClick={() => setSelectedGuest(guest)} aria-label={`View ${guest.name}`} title="View guest"><Users size={15} /></button>
-                        <a className="guest-row-action" href={`mailto:${guest.email}`} aria-label={`Email ${guest.name}`} title="Email guest"><Mail size={15} /></a>
-                      </td>
-                    </tr>
-                  ))}
-                  {pageGuests.length === 0 && (
-                    <tr><td className="guest-empty-cell" colSpan={6}><span><Search size={19} /></span><b>No guests found</b><small>Try another search or clear your filters.</small><button onClick={() => { setSearch(""); setStatusFilter("All statuses"); setPreferenceFilter("All preferences"); setCurrentPage(1); }}>Clear filters</button></td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="guest-pagination">
-              <span>Showing <b>{firstItem}–{lastItem}</b> of <b>{filteredGuests.length}</b> guests</span>
-              <div className="guest-pagination-controls">
-                <button aria-label="Previous page" disabled={currentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}><ChevronLeft size={16} /></button>
-                {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
-                  <button key={page} className={page === currentPage ? "current" : ""} aria-label={`Page ${page}`} aria-current={page === currentPage ? "page" : undefined} onClick={() => setCurrentPage(page)}>{page}</button>
-                ))}
-                <button aria-label="Next page" disabled={currentPage === pageCount} onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}><ChevronRight size={16} /></button>
+          <form className="guest-profile-form" onSubmit={handleSubmit}>
+            <section className="guest-profile-card">
+              <div className="guest-profile-card-heading">
+                <div><h2>Account details</h2><p>Name and email are taken from your sign-up details.</p></div>
+                <span className="guest-profile-badge">YOUR ACCOUNT</span>
               </div>
-            </div>
-          </section>
+              <div className="guest-profile-grid">
+                <label className="guest-profile-field">
+                  Full name
+                  <input value={profile?.name || ""} readOnly aria-readonly="true" placeholder="Loading your name..." />
+                </label>
+                <label className="guest-profile-field">
+                  Email address
+                  <input type="email" value={profile?.email || ""} readOnly aria-readonly="true" placeholder="Loading your email..." />
+                </label>
+                <label className="guest-profile-field">
+                  Contact number
+                  <input
+                    type="tel"
+                    autoComplete="tel"
+                    required
+                    maxLength={24}
+                    value={form.phone}
+                    onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+                    placeholder="+94 77 123 4567"
+                  />
+                </label>
+                <label className="guest-profile-field">
+                  Number of guests
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    step="1"
+                    required
+                    value={form.guestCount}
+                    onChange={(event) => setForm((current) => ({ ...current, guestCount: event.target.value }))}
+                  />
+                </label>
+                <label className="guest-profile-field">
+                  Number of children
+                  <input
+                    type="number"
+                    min="0"
+                    max={form.guestCount || 1000}
+                    step="1"
+                    required
+                    value={form.childrenCount}
+                    onChange={(event) => setForm((current) => ({ ...current, childrenCount: event.target.value }))}
+                  />
+                </label>
+              </div>
+            </section>
 
-          <footer className="dashboard-footer"><span>© 2026 MenuPilot Guest Portal</span><span>Guest details stay organised <span className="footer-heart">♥</span></span></footer>
+            <section className="guest-profile-card">
+              <div className="guest-profile-card-heading">
+                <div><h2>Country details</h2><p>Choose your country so the hotel team can prepare for your stay.</p></div>
+              </div>
+              <fieldset className="guest-country-question">
+                <legend>Are you a Sri Lankan guest?</legend>
+                <label>
+                  <input
+                    type="radio"
+                    name="isSriLankan"
+                    required
+                    checked={isSriLankan === true}
+                    onChange={() => {
+                      setIsSriLankan(true);
+                      setForm((current) => ({ ...current, countryCode: "LK" }));
+                    }}
+                  />
+                  Yes
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="isSriLankan"
+                    required
+                    checked={isSriLankan === false}
+                    onChange={() => {
+                      setIsSriLankan(false);
+                      setForm((current) => ({
+                        ...current,
+                        countryCode: current.countryCode === "LK" ? "" : current.countryCode,
+                      }));
+                    }}
+                  />
+                  No
+                </label>
+              </fieldset>
+
+              {isSriLankan === true && (
+                <div className="guest-selected-country" aria-label="Selected country: Sri Lanka">
+                  <span>{countryFlag("LK")}</span><b>Sri Lanka</b><small>LK</small>
+                </div>
+              )}
+              {isSriLankan === false && (
+                <label className="guest-profile-field guest-country-select">
+                  Select your country
+                  <span className="guest-country-control">
+                    <span className="guest-country-flag" aria-hidden="true">
+                      {form.countryCode ? countryFlag(form.countryCode) : "🌐"}
+                    </span>
+                    <select
+                      required
+                      value={form.countryCode}
+                      onChange={(event) => setForm((current) => ({ ...current, countryCode: event.target.value }))}
+                    >
+                      <option value="">Choose a country</option>
+                      {countries.filter((country) => country.code !== "LK").map((country) => (
+                        <option value={country.code} key={country.code}>
+                          {countryFlag(country.code)} {country.name}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </label>
+              )}
+            </section>
+
+            <section className="guest-profile-card">
+              <div className="guest-profile-card-heading">
+                <div><h2>Feedback</h2><p>Share feedback about MenuPilot and the hotel team.</p></div>
+              </div>
+              <label className="guest-profile-field guest-feedback-field">
+                Your feedback <span>Optional</span>
+                <textarea
+                  rows={5}
+                  maxLength={1000}
+                  value={form.feedback}
+                  onChange={(event) => setForm((current) => ({ ...current, feedback: event.target.value }))}
+                  placeholder="Tell us what went well or how we can improve..."
+                />
+                <small>{form.feedback.length}/1,000 characters</small>
+              </label>
+            </section>
+
+            {formMessage && <p className="guest-profile-success" role="status"><CheckCircle2 size={16} />{formMessage}</p>}
+            <div className="guest-profile-actions">
+              <span>Your profile details are only shared with your booking team.</span>
+              <button type="submit" className="guest-profile-save" disabled={saving || pageLoading}>
+                <Save size={16} /> {saving ? "Saving..." : profileSaved ? "Update profile" : "Save profile"}
+              </button>
+            </div>
+          </form>
+
+          <footer className="dashboard-footer"><span>© 2026 MenuPilot Guest Portal</span><span>Made for memorable moments <span className="footer-heart">♥</span></span></footer>
         </div>
       </section>
-
-      {selectedGuest && (
-        <div className="guest-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
-          <section className="guest-modal" role="dialog" aria-modal="true" aria-labelledby="guest-details-title">
-            <button className="guest-modal-close" onClick={closeModal} aria-label="Close guest details"><X size={18} /></button>
-            <span className="guest-modal-avatar">{selectedGuest.initials}</span>
-            <div className="dashboard-eyebrow"><i /> GUEST PROFILE</div>
-            <h2 id="guest-details-title">{selectedGuest.name}</h2>
-            <a className="guest-modal-email" href={`mailto:${selectedGuest.email}`}><Mail size={15} />{selectedGuest.email}</a>
-            <div className="guest-modal-details">
-              <div><small>Booking</small><b>{selectedGuest.booking}</b></div>
-              <div><small>Dietary needs</small><b>{selectedGuest.preference}</b></div>
-              <div><small>Status</small><b>{selectedGuest.status}</b></div>
-              <div><small>Added</small><b>{selectedGuest.joined}</b></div>
-            </div>
-            <a className="guest-modal-primary" href={`mailto:${selectedGuest.email}`}>Email guest <ArrowUpRight size={16} /></a>
-          </section>
-        </div>
-      )}
-
     </main>
   );
 }

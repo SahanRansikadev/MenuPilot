@@ -32,6 +32,12 @@ const mealSchema = new mongoose.Schema(
 const bookingSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    status: {
+      type: String,
+      enum: ["pending", "confirmed", "preparing", "completed", "cancelled"],
+      default: "pending",
+      index: true,
+    },
     date: { type: Date, required: true },
     guestCount: { type: Number, required: true, min: 1 },
     childrenCount: { type: Number, required: true, min: 0 },

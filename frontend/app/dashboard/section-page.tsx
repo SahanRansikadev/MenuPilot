@@ -23,7 +23,7 @@ type DashboardSection = "bookings";
 
 const navigation = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
-  { label: "Guests", href: "/dashboard/guests", Icon: Users },
+  { label: "Guest profile", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
   { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];
@@ -39,6 +39,7 @@ const pageDetails: Record<DashboardSection, { title: string; eyebrow: string; de
 type SavedBooking = {
   id: string;
   date: string;
+  status?: string;
   guestCount: number;
   childrenCount: number;
   driverCount: number;
@@ -204,7 +205,7 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
                       <span><Leaf size={14} /> {booking.isVegetarian ? "Vegetarian guests" : "No vegetarian guests"} · {booking.hasAllergies ? `${booking.allergyCount} guest(s) with allergies` : "No reported allergies"}</span>
                       {booking.notes && <p className="section-booking-notes">{booking.notes}</p>}
                     </div>
-                    <span className="booking-status confirmed">Saved</span>
+                    <span className={`admin-status ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
                   </article>
                 ))}
               </div>

@@ -3,9 +3,11 @@ const cookieParser = require("cookie-parser");
 const express = require("express");
 const helmet = require("helmet");
 const authRoutes = require("./routes/auth");
+const adminRoutes = require("./routes/admin");
 const bookingRoutes = require("./routes/bookings");
 const foodRoutes = require("./routes/foods");
 const ingredientRoutes = require("./routes/ingredients");
+const kitchenRoutes = require("./routes/kitchen");
 
 const app = express();
 const frontendOrigins = (process.env.FRONTEND_URL || "http://localhost:3000")
@@ -41,6 +43,8 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/kitchen", kitchenRoutes);
 app.use("/api/foods", foodRoutes);
 app.use("/api/ingredients", ingredientRoutes);
 app.use("/api/bookings", bookingRoutes);
