@@ -1,6 +1,7 @@
 const express = require("express");
 const Booking = require("../models/Booking");
 const Food = require("../models/Food");
+const Ingredient = require("../models/Ingredient");
 const requireAuth = require("../middleware/require-auth");
 const parseBookingPayload = require("../utils/booking-validation");
 
@@ -19,6 +20,11 @@ function serializeBooking(booking) {
       type: meal.type,
       ...(meal.name ? { name: meal.name } : {}),
       time: meal.time,
+      hasIngredients: Boolean(meal.hasIngredients),
+      ingredients: (meal.ingredients || []).map((ingredient) => ({
+        id: ingredient.ingredientId.toString(),
+        name: ingredient.name,
+      })),
       foods: meal.foods.map((food) => ({
         id: food.foodId.toString(),
         name: food.name,
@@ -56,6 +62,20 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "One or more selected foods are no longer available." });
     }
 
+    const requestedIngredientIds = [
+      ...new Set(parsed.value.meals.flatMap((meal) => meal.ingredientIds)),
+    ];
+    let ingredients = [];
+    if (requestedIngredientIds.length > 0) {
+      ingredients = await Ingredient.find({ _id: { $in: requestedIngredientIds } })
+        .select("name")
+        .lean();
+      if (ingredients.length !== requestedIngredientIds.length) {
+        return res.status(400).json({ error: "One or more selected ingredients are no longer available." });
+      }
+    }
+    const ingredientById = new Map(ingredients.map((ingredient) => [ingredient._id.toString(), ingredient]));
+
     const booking = await Booking.create({
       userId: req.userId,
       date: new Date(`${parsed.value.date}T00:00:00.000Z`),
@@ -67,6 +87,11 @@ router.post("/", async (req, res) => {
         type: meal.type,
         ...(meal.name ? { name: meal.name } : {}),
         time: meal.time,
+        hasIngredients: meal.hasIngredients,
+        ingredients: meal.ingredientIds.map((ingredientId) => ({
+          ingredientId,
+          name: ingredientById.get(ingredientId).name,
+        })),
         foods: meal.foodIds.map((foodId) => ({
           foodId,
           name: foodById.get(foodId).name,

@@ -48,6 +48,8 @@ type SavedBooking = {
     name?: string;
     time: string;
     foods: Array<{ id: string; name: string }>;
+    hasIngredients?: boolean;
+    ingredients?: Array<{ id: string; name: string }>;
   }>;
   isVegetarian: boolean;
   hasAllergies: boolean;
@@ -190,6 +192,11 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
                           <div key={`${meal.type}-${meal.time}`}>
                             <span><Utensils size={13} /> {meal.name || meal.type} · {meal.time}</span>
                             <small>{meal.foods.map((food) => food.name).join(", ")}</small>
+                            {meal.hasIngredients && meal.ingredients && meal.ingredients.length > 0 && (
+                              <small className="section-booking-ingredients">
+                                Bringing: {meal.ingredients.map((ingredient) => ingredient.name).join(", ")}
+                              </small>
+                            )}
                           </div>
                         ))}
                       </div>

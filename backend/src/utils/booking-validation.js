@@ -75,6 +75,27 @@ function parseBookingPayload(payload) {
     if (meal.type === "Other" && (!name || name.length > 100)) {
       return { error: "Enter a name for the other meal or event." };
     }
+    const hasIngredients = meal.hasIngredients === undefined ? false : meal.hasIngredients;
+    const ingredientIds = meal.ingredientIds === undefined ? [] : meal.ingredientIds;
+    if (typeof hasIngredients !== "boolean") {
+      return { error: "Choose whether you are bringing the ingredients for every meal." };
+    }
+    if (!Array.isArray(ingredientIds) || ingredientIds.length > 50) {
+      return { error: "Choose no more than 50 ingredients per meal." };
+    }
+    if (hasIngredients && ingredientIds.length === 0) {
+      return { error: "Select at least one ingredient when bringing ingredients for a meal." };
+    }
+    if (!hasIngredients && ingredientIds.length > 0) {
+      return { error: "Do not include ingredients unless you are bringing them for that meal." };
+    }
+    const parsedIngredientIds = ingredientIds.map((ingredientId) => String(ingredientId));
+    if (
+      parsedIngredientIds.some((ingredientId) => !objectIdPattern.test(ingredientId)) ||
+      new Set(parsedIngredientIds).size !== parsedIngredientIds.length
+    ) {
+      return { error: "Meal ingredient selections are invalid." };
+    }
     if (!Array.isArray(meal.foodIds) || meal.foodIds.length === 0 || meal.foodIds.length > 20) {
       return { error: "Choose at least one food for every meal." };
     }
@@ -89,6 +110,8 @@ function parseBookingPayload(payload) {
       type: meal.type,
       ...(name ? { name } : {}),
       time: meal.time,
+      hasIngredients,
+      ingredientIds: parsedIngredientIds,
       foodIds,
     });
   }
