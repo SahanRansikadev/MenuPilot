@@ -29,6 +29,13 @@ html::-webkit-scrollbar{width:10px}
 .section-booking-copy h3,.section-activity-row h3{margin:0;color:#1b2d45;font:700 14px Manrope,sans-serif}
 .section-booking-copy p,.section-activity-row p{margin:6px 0 12px;color:#77869a;font-size:12px}
 .section-booking-copy>span{display:inline-flex;align-items:center;gap:6px;margin:0 18px 4px 0;color:#78879a;font-size:11px}
+.section-booking-message{padding:18px 0;color:#77869a;font-size:12px}
+.section-booking-message.error{color:#bf4b4b}
+.section-booking-meals{display:grid;gap:9px;margin:12px 0}
+.section-booking-meals>div{display:grid;gap:4px}
+.section-booking-meals span{display:inline-flex;align-items:center;gap:6px;color:#53657c;font-size:10px;font-weight:700}
+.section-booking-meals small{color:#8794a4;font-size:10px}
+.section-booking-notes{margin:8px 0!important;color:#62738a!important;font-size:10px!important;font-style:italic}
 .section-page-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,.8fr);gap:20px;align-items:start}
 .section-preference-card{display:flex;align-items:center;gap:14px}
 .section-preference-card>div{flex:1}
@@ -94,6 +101,31 @@ html::-webkit-scrollbar{width:10px}
 .planner-meal-time input{width:100%;height:34px;padding:0 9px;border:1px solid #dfe6ee;border-radius:5px;background:#fff;color:#344961;font:inherit;outline:none}
 .planner-meal-time input:focus{border-color:#85a8e8;box-shadow:0 0 0 3px #2864df14}
 .planner-other-meal{margin-top:16px}
+.planner-food-selections{display:grid;gap:12px;margin:22px 0}
+.planner-food-card{padding:14px;border:1px solid #e3e9f0;border-radius:7px;background:#fff}
+.planner-food-card-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.planner-food-card-heading h4{margin:0;color:#344961;font:700 12px Manrope,sans-serif}
+.planner-food-card-heading>span{color:#7f8ea0;font-size:10px}
+.planner-selected-foods{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.planner-food-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 7px;border-radius:12px;background:#edf3ff;color:#315fae;font-size:9px}
+.planner-food-chip button{display:grid;place-items:center;padding:0;border:0;background:transparent;color:inherit;cursor:pointer}
+.planner-food-search,.planner-allergy-count,.planner-booking-notes{display:grid;gap:7px;color:#53657c;font-size:10px;font-weight:700}
+.planner-food-search input,.planner-allergy-count input,.planner-booking-notes textarea{width:100%;padding:10px 11px;border:1px solid #dfe6ee;border-radius:5px;background:#fff;color:#344961;font:400 11px 'DM Sans',sans-serif;outline:none}
+.planner-food-search input:focus,.planner-allergy-count input:focus,.planner-booking-notes textarea:focus{border-color:#85a8e8;box-shadow:0 0 0 3px #2864df14}
+.planner-food-results{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.planner-food-results button{padding:6px 8px;border:1px solid #e3e9f0;border-radius:14px;background:#fff;color:#53657c;font-size:9px;cursor:pointer}
+.planner-food-results button:hover:not(:disabled){border-color:#9bb8ed;color:#2c5fc1}
+.planner-food-results button:disabled{background:#edf3ff;color:#7190c7;cursor:default}
+.planner-add-food{margin-top:9px;padding:0;border:0;background:none;color:var(--blue);font-size:10px;font-weight:700;cursor:pointer}
+.planner-add-food:disabled{color:#93a1b1;cursor:wait}
+.planner-food-status{display:block;margin-top:7px;color:#8997a8;font-size:9px}
+.planner-preference-fieldset{display:flex;flex-wrap:wrap;gap:12px;margin:19px 0 0;padding:13px;border:1px solid #e3e9f0;border-radius:6px}
+.planner-preference-fieldset legend{padding:0 4px;color:#53657c;font-size:10px;font-weight:700}
+.planner-preference-fieldset label{display:inline-flex;align-items:center;gap:6px;color:#62738a;font-size:10px;cursor:pointer}
+.planner-preference-fieldset input{margin:0;accent-color:var(--blue)}
+.planner-allergy-count{margin-top:14px}
+.planner-booking-notes{margin-top:16px}
+.planner-booking-notes textarea{resize:vertical;line-height:1.5}
 .planner-form-error{margin:14px 0 0;color:#bf4b4b;font-size:10px}
 .planner-drawer-actions{display:flex;align-items:center;gap:10px;margin-top:26px;padding-top:18px;border-top:1px solid #edf1f5}
 .planner-secondary-button,.planner-back-button,.planner-primary-button{min-height:40px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 15px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer}
@@ -102,13 +134,14 @@ html::-webkit-scrollbar{width:10px}
 .planner-primary-button{border:1px solid var(--blue);background:var(--blue);color:#fff}
 .planner-secondary-button:hover,.planner-back-button:hover{color:var(--blue)}
 .planner-primary-button:hover{background:#1d55c1}
+.planner-secondary-button:disabled,.planner-back-button:disabled,.planner-primary-button:disabled{opacity:.6;cursor:not-allowed}
 .planner-complete{padding-top:35px;text-align:center}
 .planner-complete-icon{width:54px;height:54px;display:grid;place-items:center;margin:0 auto 15px;border-radius:50%;background:#eaf7f1;color:#3b9a75}
 .planner-complete h3{font-size:19px}
 .planner-complete-summary{display:grid;gap:12px;margin:24px 0;padding:17px;border:1px solid #e9edf3;border-radius:7px;text-align:left}
 .planner-complete-summary span{display:flex;justify-content:space-between;gap:16px;color:#62738a;font-size:10px}
 .planner-complete-summary b{color:#334a65}
-.planner-demo-note{color:#96a1af;font-size:9px}
+.planner-booking-reference{color:#96a1af;font-size:9px}
 .planner-done-button{min-width:100px;margin-top:16px}
 @keyframes planner-backdrop-in{from{opacity:0}to{opacity:1}}
 @keyframes planner-drawer-in{from{transform:translateX(24px);opacity:.7}to{transform:translateX(0);opacity:1}}

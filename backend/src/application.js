@@ -3,6 +3,8 @@ const cookieParser = require("cookie-parser");
 const express = require("express");
 const helmet = require("helmet");
 const authRoutes = require("./routes/auth");
+const bookingRoutes = require("./routes/bookings");
+const foodRoutes = require("./routes/foods");
 
 const app = express();
 const frontendOrigins = (process.env.FRONTEND_URL || "http://localhost:3000")
@@ -38,6 +40,8 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/foods", foodRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found." });

@@ -1,10 +1,11 @@
-const { createHash, randomBytes } = require("node:crypto");
+const { randomBytes } = require("node:crypto");
 const bcrypt = require("bcryptjs");
 const express = require("express");
 const { rateLimit } = require("express-rate-limit");
 const Session = require("../models/Session");
 const User = require("../models/User");
 const parseAuthPayload = require("../utils/auth-validation");
+const hashSessionToken = require("../utils/hash-session-token");
 
 const router = express.Router();
 const sessionLifetimeSeconds = 60 * 60 * 24 * 7;
@@ -29,10 +30,6 @@ function sessionCookieOptions() {
 
 function isDuplicateKeyError(error) {
   return error && typeof error === "object" && error.code === 11000;
-}
-
-function hashSessionToken(token) {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 function clearSessionCookie(res) {
