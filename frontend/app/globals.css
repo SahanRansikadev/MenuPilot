@@ -86,9 +86,13 @@ html::-webkit-scrollbar{width:10px}
 .planner-form-grid input:focus,.planner-other-meal input:focus{border-color:#85a8e8;box-shadow:0 0 0 3px #2864df14}
 .planner-form-grid input::placeholder,.planner-other-meal input::placeholder{color:#a7b2bf;font-size:10px}
 .planner-meal-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:23px}
-.planner-meal-option{min-height:48px;display:flex;align-items:center;gap:10px;padding:0 12px;border:1px solid #e3e9f0;border-radius:6px;background:#fff;color:#53657c;font-size:11px;font-weight:600;cursor:pointer}
+.planner-meal-option{min-height:48px;padding:10px 12px;border:1px solid #e3e9f0;border-radius:6px;background:#fff;color:#53657c;font-size:11px;font-weight:600}
 .planner-meal-option.is-selected{border-color:#9bb8ed;background:#f5f8ff;color:#2c5fc1}
-.planner-meal-option input{width:15px;height:15px;margin:0;accent-color:var(--blue)}
+.planner-meal-choice{min-height:26px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.planner-meal-choice input{width:15px;height:15px;margin:0;accent-color:var(--blue)}
+.planner-meal-time{display:grid;gap:6px;margin-top:8px;color:#53657c;font-size:9px;font-weight:700}
+.planner-meal-time input{width:100%;height:34px;padding:0 9px;border:1px solid #dfe6ee;border-radius:5px;background:#fff;color:#344961;font:inherit;outline:none}
+.planner-meal-time input:focus{border-color:#85a8e8;box-shadow:0 0 0 3px #2864df14}
 .planner-other-meal{margin-top:16px}
 .planner-form-error{margin:14px 0 0;color:#bf4b4b;font-size:10px}
 .planner-drawer-actions{display:flex;align-items:center;gap:10px;margin-top:26px;padding-top:18px;border-top:1px solid #edf1f5}
@@ -108,7 +112,7 @@ html::-webkit-scrollbar{width:10px}
 .planner-done-button{min-width:100px;margin-top:16px}
 @keyframes planner-backdrop-in{from{opacity:0}to{opacity:1}}
 @keyframes planner-drawer-in{from{transform:translateX(24px);opacity:.7}to{transform:translateX(0);opacity:1}}
-@media(max-width:520px){.planner-drawer{padding:22px 18px}.planner-form-grid{grid-template-columns:1fr;gap:13px}.planner-meal-options{gap:8px}.planner-meal-option{padding:0 9px;font-size:10px}.planner-drawer-actions{gap:6px}.planner-secondary-button,.planner-back-button,.planner-primary-button{padding:0 12px}}
+@media(max-width:520px){.planner-drawer{padding:22px 18px}.planner-form-grid{grid-template-columns:1fr;gap:13px}.planner-meal-options{gap:8px}.planner-meal-option{padding:9px;font-size:10px}.planner-drawer-actions{gap:6px}.planner-secondary-button,.planner-back-button,.planner-primary-button{padding:0 12px}}
 html::-webkit-scrollbar-track{background:#edf1f7}
 html::-webkit-scrollbar-thumb{background:var(--blue);border:2px solid #edf1f7;border-radius:999px}
 .auth-signin,.auth-signup{font-family:inherit;cursor:pointer}.nav button{font-family:inherit;cursor:pointer}

@@ -79,6 +79,7 @@ export default function GuestDashboard() {
   const [plannerStep, setPlannerStep] = useState<"guest-details" | "meals" | "complete">("guest-details");
   const [guestDateForm, setGuestDateForm] = useState(initialGuestDateForm);
   const [selectedMeals, setSelectedMeals] = useState<string[]>([]);
+  const [selectedMealTimes, setSelectedMealTimes] = useState<Record<string, string>>({});
   const [otherMealName, setOtherMealName] = useState("");
   const [plannerError, setPlannerError] = useState("");
 
@@ -147,6 +148,7 @@ export default function GuestDashboard() {
     setSelectedDate(date);
     setGuestDateForm(initialGuestDateForm);
     setSelectedMeals([]);
+    setSelectedMealTimes({});
     setOtherMealName("");
     setPlannerError("");
     setPlannerStep("guest-details");
@@ -183,6 +185,11 @@ export default function GuestDashboard() {
 
     if (selectedMeals.length === 0) {
       setPlannerError("Select at least one meal type to continue.");
+      return;
+    }
+
+    if (selectedMeals.some((meal) => !selectedMealTimes[meal])) {
+      setPlannerError("Select a time for each meal type.");
       return;
     }
 
@@ -533,14 +540,30 @@ export default function GuestDashboard() {
                 </div>
                 <div className="planner-meal-options">
                   {mealOptions.map((option) => (
-                    <label className={`planner-meal-option${selectedMeals.includes(option) ? " is-selected" : ""}`} key={option}>
-                      <input
-                        type="checkbox"
-                        checked={selectedMeals.includes(option)}
-                        onChange={() => toggleMealOption(option)}
-                      />
-                      <span>{option}</span>
-                    </label>
+                    <div className={`planner-meal-option${selectedMeals.includes(option) ? " is-selected" : ""}`} key={option}>
+                      <label className="planner-meal-choice">
+                        <input
+                          type="checkbox"
+                          checked={selectedMeals.includes(option)}
+                          onChange={() => toggleMealOption(option)}
+                        />
+                        <span>{option}</span>
+                      </label>
+                      {selectedMeals.includes(option) && (
+                        <label className="planner-meal-time">
+                          Time
+                          <input
+                            type="time"
+                            required
+                            value={selectedMealTimes[option] || ""}
+                            onChange={(event) => {
+                              setSelectedMealTimes((times) => ({ ...times, [option]: event.target.value }));
+                              setPlannerError("");
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
                   ))}
                 </div>
                 {selectedMeals.includes("Other") && (
@@ -574,7 +597,7 @@ export default function GuestDashboard() {
                   <span><b>Guests</b>{guestDateForm.guestCount} total · {guestDateForm.childCount} children</span>
                   <span><b>Drivers</b>{guestDateForm.driverCount || "0"}</span>
                   <span><b>Guides</b>{guestDateForm.guideCount || "0"}</span>
-                  <span><b>Meals</b>{selectedMeals.map((meal) => meal === "Other" ? otherMealName.trim() : meal).join(", ")}</span>
+                  <span><b>Meals</b>{selectedMeals.map((meal) => `${meal === "Other" ? otherMealName.trim() : meal} · ${selectedMealTimes[meal]}`).join(", ")}</span>
                 </div>
                 <p className="planner-demo-note">This demo form does not save details to a server.</p>
                 <button type="button" className="planner-primary-button planner-done-button" onClick={() => setPlannerOpen(false)}>Done</button>
