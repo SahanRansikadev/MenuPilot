@@ -19,19 +19,17 @@ import {
   MapPin,
   Menu,
   PartyPopper,
-  Soup,
   Utensils,
   Users,
   X,
 } from "lucide-react";
 
-type DashboardSection = "bookings" | "meal-planner" | "recent-activity";
+type DashboardSection = "bookings" | "recent-activity";
 
 const navigation = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Guests", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
-  { label: "Meal planner", href: "/dashboard/meal-planner", Icon: Utensils },
   { label: "Recent activity", href: "/dashboard/recent-activity", Icon: ClipboardList },
 ];
 
@@ -40,11 +38,6 @@ const pageDetails: Record<DashboardSection, { title: string; eyebrow: string; de
     title: "My bookings",
     eyebrow: "YOUR STAYS & EVENTS",
     description: "Review your upcoming stays, events, and booking details.",
-  },
-  "meal-planner": {
-    title: "Meal planner",
-    eyebrow: "MENUS & PREFERENCES",
-    description: "Keep track of meal selections for your upcoming bookings.",
   },
   "recent-activity": {
     title: "Recent activity",
@@ -56,12 +49,6 @@ const pageDetails: Record<DashboardSection, { title: string; eyebrow: string; de
 const upcomingBookings = [
   { title: "Weekend at Villa Serene", detail: "Breakfast & dinner · 2 guests", date: "5–7 Dec, 2026", status: "Confirmed", location: "Galle, Sri Lanka", Icon: Coffee, tone: "blue" },
   { title: "Garden dinner", detail: "Private event · 6 guests", date: "19 Dec, 2026", status: "Awaiting menu", location: "Colombo, Sri Lanka", Icon: PartyPopper, tone: "gold" },
-];
-
-const mealSelections = [
-  { label: "Breakfast", count: 8, percent: 80, Icon: Coffee, tone: "blue" },
-  { label: "Lunch", count: 6, percent: 60, Icon: Soup, tone: "green" },
-  { label: "Dinner", count: 4, percent: 40, Icon: Utensils, tone: "gold" },
 ];
 
 const recentActivity = [
@@ -157,29 +144,6 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
                 ))}
               </div>
             </section>
-          )}
-
-          {section === "meal-planner" && (
-            <div className="section-page-grid">
-              <section className="section-page-card">
-                <div className="section-page-card-heading"><div><h2>Meal selections</h2><p>Selections across your upcoming bookings.</p></div><span className="booking-total">18 of 24 selected</span></div>
-                <div className="meal-bars">
-                  {mealSelections.map(({ label, count, percent, Icon, tone }) => (
-                    <div className="meal-bar-row" key={label}>
-                      <span className={`meal-type-icon ${tone}`}><Icon size={17} /></span>
-                      <span className="meal-type-name">{label}</span>
-                      <div className="meal-bar-track"><i className={tone} style={{ width: `${percent}%` }} /></div>
-                      <b>{count}<small> meals</small></b>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              <section className="section-page-card section-preference-card">
-                <span className="stat-icon violet"><Leaf size={19} /></span>
-                <div><h2>Your food preferences</h2><p>Vegetarian · Shared with your hosts</p></div>
-                <span className="section-preference-check"><Check size={15} /> Saved</span>
-              </section>
-            </div>
           )}
 
           {section === "recent-activity" && (
