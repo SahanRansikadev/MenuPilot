@@ -38,22 +38,36 @@ test("accepts multiple recipe names with only a menu description", () => {
   assert.deepEqual(parsed.value, {
     hotelName: "Villa Serene",
     mealType: "Dinner",
+    foods: ["Coconut curry", "Roast chicken"],
+    desserts: [],
     recipeNames: ["Coconut curry", "Roast chicken"],
     description: "Evening favourites.",
   });
 });
 
-test("rejects duplicate or blank recipe names", () => {
+test("accepts separate food and dessert lists and rejects duplicates", () => {
+  const parsed = parseMenuPayload({
+    hotelName: "Villa Serene",
+    mealType: "Dinner",
+    foods: ["Coconut curry", "Roast chicken"],
+    desserts: ["Watalappan"],
+    description: "",
+  });
+  assert.deepEqual(parsed.value.foods, ["Coconut curry", "Roast chicken"]);
+  assert.deepEqual(parsed.value.desserts, ["Watalappan"]);
+
   assert.match(parseMenuPayload({
     hotelName: "Villa Serene",
     mealType: "Dinner",
-    recipeNames: ["Coconut curry", " coconut   curry "],
+    foods: ["Coconut curry"],
+    desserts: [" coconut   curry "],
     description: "",
-  }).error, /recipe name/);
+  }).error, /food or dessert name/);
   assert.match(parseMenuPayload({
     hotelName: "Villa Serene",
     mealType: "Dinner",
-    recipeNames: [""],
+    foods: [],
+    desserts: [],
     description: "",
-  }).error, /recipe name/);
+  }).error, /food or dessert name/);
 });

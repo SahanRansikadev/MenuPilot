@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema(
       validate: (value) => !value || /^[A-Z]{2}$/.test(value),
     },
     feedback: { type: String, trim: true, maxlength: 1000, default: "" },
+    feedbackReply: { type: String, trim: true, maxlength: 1000, default: "" },
+    feedbackLiked: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

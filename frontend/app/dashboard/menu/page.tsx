@@ -33,9 +33,9 @@ const demoProperties = [
     location: "Galle, Southern Province",
     description: "A relaxed coastal menu featuring fresh local ingredients.",
     meals: [
-      { name: "Breakfast", items: "Coconut pancakes, tropical fruit platter, string hoppers with dhal", note: "Vegetarian options available", Icon: Coffee },
-      { name: "Lunch", items: "Grilled catch of the day, red rice, garden salad, lime curry", note: "Fresh seafood · Vegan curry on request", Icon: Soup },
-      { name: "Dinner", items: "Roast chicken with herbs, jackfruit curry, watalappan", note: "Ask about today's catch", Icon: Utensils },
+      { name: "Breakfast", foods: ["Coconut pancakes", "Tropical fruit platter", "String hoppers with dhal"], desserts: [], note: "Vegetarian options available", Icon: Coffee },
+      { name: "Lunch", foods: ["Grilled catch of the day", "Red rice", "Garden salad", "Lime curry"], desserts: [], note: "Fresh seafood · Vegan curry on request", Icon: Soup },
+      { name: "Dinner", foods: ["Roast chicken with herbs", "Jackfruit curry"], desserts: ["Watalappan"], note: "Ask about today's catch", Icon: Utensils },
     ],
   },
   {
@@ -43,9 +43,9 @@ const demoProperties = [
     location: "Colombo, Western Province",
     description: "A bright city stay with Sri Lankan favourites and light bites.",
     meals: [
-      { name: "Breakfast", items: "Egg hoppers, pol roti, seasonal fruit, Ceylon tea", note: "Gluten-free choices available", Icon: Coffee },
-      { name: "Lunch", items: "Chicken biryani, cashew curry, cucumber sambol", note: "Vegetarian biryani available", Icon: Soup },
-      { name: "Dinner", items: "Pepper crab, coconut rice, mixed vegetable curry, curd and treacle", note: "Seafood · Dairy-free dessert available", Icon: Utensils },
+      { name: "Breakfast", foods: ["Egg hoppers", "Pol roti", "Seasonal fruit", "Ceylon tea"], desserts: [], note: "Gluten-free choices available", Icon: Coffee },
+      { name: "Lunch", foods: ["Chicken biryani", "Cashew curry", "Cucumber sambol"], desserts: [], note: "Vegetarian biryani available", Icon: Soup },
+      { name: "Dinner", foods: ["Pepper crab", "Coconut rice", "Mixed vegetable curry"], desserts: ["Curd and treacle"], note: "Seafood · Dairy-free dessert available", Icon: Utensils },
     ],
   },
   {
@@ -53,9 +53,9 @@ const demoProperties = [
     location: "Ella, Uva Province",
     description: "Comforting hill-country dishes made with seasonal produce.",
     meals: [
-      { name: "Breakfast", items: "Warm oats, local honey, fresh fruit, vegetable omelette", note: "Vegan breakfast available", Icon: Coffee },
-      { name: "Lunch", items: "Pumpkin soup, roast vegetable wraps, green salad", note: "Vegetarian · Gluten-free on request", Icon: Soup },
-      { name: "Dinner", items: "Black pork curry, red rice, beetroot curry, jaggery pudding", note: "A mild curry option is available", Icon: Utensils },
+      { name: "Breakfast", foods: ["Warm oats", "Local honey", "Fresh fruit", "Vegetable omelette"], desserts: [], note: "Vegan breakfast available", Icon: Coffee },
+      { name: "Lunch", foods: ["Pumpkin soup", "Roast vegetable wraps", "Green salad"], desserts: [], note: "Vegetarian · Gluten-free on request", Icon: Soup },
+      { name: "Dinner", foods: ["Black pork curry", "Red rice", "Beetroot curry"], desserts: ["Jaggery pudding"], note: "A mild curry option is available", Icon: Utensils },
     ],
   },
   {
@@ -63,9 +63,9 @@ const demoProperties = [
     location: "Bentota, Southern Province",
     description: "A tropical resort menu with beachside classics and island flavours.",
     meals: [
-      { name: "Breakfast", items: "Pittu, coconut sambol, banana pancakes, fresh juice", note: "Vegan options available", Icon: Coffee },
-      { name: "Lunch", items: "Tuna steak, lemon rice, grilled vegetables, passionfruit salad", note: "Fresh catch · Vegetarian plate available", Icon: Soup },
-      { name: "Dinner", items: "Seafood curry, string hoppers, lentil dhal, coconut cream tart", note: "Mild and spicy versions available", Icon: Utensils },
+      { name: "Breakfast", foods: ["Pittu", "Coconut sambol", "Banana pancakes", "Fresh juice"], desserts: [], note: "Vegan options available", Icon: Coffee },
+      { name: "Lunch", foods: ["Tuna steak", "Lemon rice", "Grilled vegetables", "Passionfruit salad"], desserts: [], note: "Fresh catch · Vegetarian plate available", Icon: Soup },
+      { name: "Dinner", foods: ["Seafood curry", "String hoppers", "Lentil dhal"], desserts: ["Coconut cream tart"], note: "Mild and spicy versions available", Icon: Utensils },
     ],
   },
 ];
@@ -73,7 +73,8 @@ const demoProperties = [
 type MenuGroup = {
   hotelName: string;
   mealType: string;
-  recipeNames: string[];
+  foods: string[];
+  desserts: string[];
   description: string;
 };
 
@@ -160,7 +161,8 @@ export default function MenuPage() {
           setManagedMenus(menuResult.menus.map((menu) => ({
             ...menu,
             description: menu.description || "",
-            recipeNames: menu.recipeNames || [],
+            foods: menu.foods || [],
+            desserts: menu.desserts || [],
           })));
           setHotelLocations(Object.fromEntries(locationByHotel));
         }
@@ -208,12 +210,13 @@ export default function MenuPage() {
             name: menu.hotelName,
             location: hotelLocations[menu.hotelName.toLocaleLowerCase()] || "",
             description: "Browse the available recipes by meal type.",
-            meals: [] as Array<{ name: string; items: string; note: string; Icon: typeof Coffee }>,
+            meals: [] as Array<{ name: string; foods: string[]; desserts: string[]; note: string; Icon: typeof Coffee }>,
           };
           const Icon = menu.mealType === "Breakfast" ? Coffee : menu.mealType === "Dinner" ? Utensils : Soup;
           property.meals.push({
             name: menu.mealType,
-            items: menu.recipeNames.join(", "),
+            foods: menu.foods,
+            desserts: menu.desserts,
             note: menu.description,
             Icon,
           });
@@ -223,7 +226,7 @@ export default function MenuPage() {
           name: string;
           location: string;
           description: string;
-          meals: Array<{ name: string; items: string; note: string; Icon: typeof Coffee }>;
+          meals: Array<{ name: string; foods: string[]; desserts: string[]; note: string; Icon: typeof Coffee }>;
         }>()).values());
 
   return (
@@ -297,7 +300,7 @@ export default function MenuPage() {
             {displayProperties.map((property) => {
               const isExpanded = expandedProperty === property.name;
               return (
-                <article className="menu-property-card" key={property.name}>
+                <article className="menu-property-card menu-book-property" key={property.name}>
                   <div className="menu-property-heading">
                     <div><h2>{property.name}</h2><p>{property.location}</p></div>
                     <span className="menu-demo-badge">{managedMenus?.length ? "HOTEL MENU" : "DEMO MENU"}</span>
@@ -309,16 +312,22 @@ export default function MenuPage() {
                     aria-expanded={isExpanded}
                     onClick={() => setExpandedProperty(isExpanded ? null : property.name)}
                   >
-                    {isExpanded ? "Hide menu" : "View menu"} <ArrowUpRight size={14} />
+                    {isExpanded ? "Close menu" : "View menu"} <ArrowUpRight size={14} />
                   </button>
                   {isExpanded && (
-                    <div className="menu-meal-list">
-                      {property.meals.map(({ name, items, note, Icon }) => (
-                        <div className="menu-meal" key={name}>
-                          <span className="menu-meal-icon"><Icon size={15} /></span>
-                          <div><h3>{name}</h3><p>{items}</p><small>{note}</small></div>
-                        </div>
-                      ))}
+                    <div className="menu-book">
+                      <div className="menu-book-title"><span>MENUPILOT · {property.name.toUpperCase()}</span><h3>Today's Menu</h3><p>Carefully prepared for your stay</p></div>
+                      <div className="menu-meal-list">
+                        {property.meals.map(({ name, foods, desserts, note, Icon }) => (
+                          <section className="menu-meal" key={name}>
+                            <div className="menu-meal-heading"><span className="menu-meal-icon"><Icon size={15} /></span><div><h4>{name}</h4><small>MENU SELECTION</small></div></div>
+                            {!!foods.length && <div className="menu-recipe-category"><h5>Foods</h5><ul>{foods.map((recipe, index) => <li key={`${recipe}-${index}`}>{recipe}</li>)}</ul></div>}
+                            {!!desserts.length && <div className="menu-recipe-category dessert"><h5>Desserts</h5><ul>{desserts.map((recipe, index) => <li key={`${recipe}-${index}`}>{recipe}</li>)}</ul></div>}
+                            {!foods.length && !desserts.length && <p className="menu-no-recipes">Menu selections will be added soon.</p>}
+                            {note && <p className="menu-meal-note">{note}</p>}
+                          </section>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </article>

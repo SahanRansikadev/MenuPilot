@@ -25,8 +25,9 @@ test("guest menu view groups and orders recipes by hotel and meal type", async (
     limit() { return this; },
     lean: async () => [
       { hotelName: "Villa Serene", mealType: "Dinner", name: "Coconut curry", description: "Dinner menu." },
-      { hotelName: "Villa Serene", mealType: "Breakfast", recipeNames: ["String hoppers", "Fruit plate"], description: "Breakfast menu." },
-      { hotelName: "Villa Serene", mealType: "Dinner", recipeNames: ["Roast chicken"], description: "" },
+      { hotelName: "Villa Serene", mealType: "Breakfast", foods: ["String hoppers"], desserts: ["Fruit plate"], description: "Breakfast menu." },
+      { hotelName: "Villa Serene", mealType: "Tea time", foods: [], desserts: ["Butter cake"], recipeNames: ["Butter cake"], description: "" },
+      { hotelName: "Villa Serene", mealType: "Dinner", foods: ["Roast chicken"], desserts: ["Watalappan"], description: "" },
     ],
   });
   t.after(() => {
@@ -48,13 +49,22 @@ test("guest menu view groups and orders recipes by hotel and meal type", async (
     {
       hotelName: "Villa Serene",
       mealType: "Breakfast",
-      recipeNames: ["String hoppers", "Fruit plate"],
+      foods: ["String hoppers"],
+      desserts: ["Fruit plate"],
       description: "Breakfast menu.",
     },
     {
       hotelName: "Villa Serene",
+      mealType: "Tea time",
+      foods: [],
+      desserts: ["Butter cake"],
+      description: "",
+    },
+    {
+      hotelName: "Villa Serene",
       mealType: "Dinner",
-      recipeNames: ["Coconut curry", "Roast chicken"],
+      foods: ["Coconut curry", "Roast chicken"],
+      desserts: ["Watalappan"],
       description: "Dinner menu.",
     },
   ]);

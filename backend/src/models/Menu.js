@@ -5,6 +5,8 @@ const menuSchema = new mongoose.Schema(
     hotelName: { type: String, required: true, trim: true, maxlength: 100 },
     name: { type: String, trim: true, maxlength: 100, default: "" },
     recipeNames: { type: [{ type: String, trim: true, maxlength: 100 }], default: [] },
+    foods: { type: [{ type: String, trim: true, maxlength: 100 }], default: [] },
+    desserts: { type: [{ type: String, trim: true, maxlength: 100 }], default: [] },
     mealType: {
       type: String,
       enum: ["Breakfast", "Lunch", "Tea time", "Dinner", "Barbecue", "Other"],

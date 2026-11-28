@@ -15,10 +15,18 @@ function parseMenuPayload(payload) {
       )
     : [];
   const normalizedIngredients = ingredients.map((ingredient) => ingredient.toLocaleLowerCase("en"));
-  const isRecipeList = Array.isArray(payload.recipeNames);
-  const recipeNames = isRecipeList
-    ? payload.recipeNames.map((name) => typeof name === "string" ? name.trim().replace(/\s+/g, " ") : "")
-    : [typeof payload.name === "string" ? payload.name.trim().replace(/\s+/g, " ") : ""];
+  const isFoodDessertList = Array.isArray(payload.foods) || Array.isArray(payload.desserts);
+  const isRecipeList = isFoodDessertList || Array.isArray(payload.recipeNames);
+  const normalizeNames = (names) => names.map((name) =>
+    typeof name === "string" ? name.trim().replace(/\s+/g, " ") : "",
+  );
+  const foods = isFoodDessertList
+    ? normalizeNames(Array.isArray(payload.foods) ? payload.foods : [])
+    : isRecipeList
+      ? normalizeNames(Array.isArray(payload.recipeNames) ? payload.recipeNames : [])
+      : [typeof payload.name === "string" ? payload.name.trim().replace(/\s+/g, " ") : ""];
+  const desserts = isFoodDessertList ? normalizeNames(Array.isArray(payload.desserts) ? payload.desserts : []) : [];
+  const recipeNames = [...foods, ...desserts];
   const normalizedRecipeNames = recipeNames.map((name) => name.toLocaleLowerCase("en"));
 
   if (!hotelName || hotelName.length > 100) {
@@ -32,14 +40,14 @@ function parseMenuPayload(payload) {
     recipeNames.some((name) => !name || name.length > 100) ||
     new Set(normalizedRecipeNames).size !== normalizedRecipeNames.length
   ) {
-    return { error: "Add at least one unique recipe name, each no longer than 100 characters." };
+    return { error: "Add at least one unique food or dessert name, each no longer than 100 characters." };
   }
   if (description.length > 500) {
     return { error: "Menu description must be 500 characters or fewer." };
   }
 
   if (isRecipeList) {
-    return { value: { hotelName, mealType, recipeNames, description } };
+    return { value: { hotelName, mealType, foods, desserts, recipeNames, description } };
   }
 
   if (!instructions || instructions.length > 5000) {

@@ -10,7 +10,7 @@ router.use(requireAuth, requireRole("guest"));
 router.get("/", async (_req, res) => {
   try {
     const records = await Menu.find()
-      .select("hotelName mealType recipeNames name description createdAt")
+      .select("hotelName mealType recipeNames foods desserts name description createdAt")
       .sort({ hotelName: 1, mealType: 1, createdAt: 1 })
       .limit(1000)
       .lean();
@@ -20,19 +20,25 @@ router.get("/", async (_req, res) => {
       const group = grouped.get(key) || {
         hotelName: record.hotelName,
         mealType: record.mealType,
-        recipeNames: [],
+        foods: [],
+        desserts: [],
         description: "",
       };
       const recipeNames = record.recipeNames?.length
         ? record.recipeNames
         : record.name ? [record.name] : [];
-      const existingNames = new Set(group.recipeNames.map((name) => name.toLocaleLowerCase("en")));
-      recipeNames.forEach((name) => {
-        const normalized = name.trim().toLocaleLowerCase("en");
-        if (normalized && !existingNames.has(normalized)) {
-          group.recipeNames.push(name);
-          existingNames.add(normalized);
-        }
+      const hasCategorizedRecipes = Boolean(record.foods?.length || record.desserts?.length);
+      const foods = hasCategorizedRecipes ? record.foods || [] : recipeNames;
+      const desserts = Array.isArray(record.desserts) ? record.desserts : [];
+      [["foods", foods], ["desserts", desserts]].forEach(([category, names]) => {
+        const existingNames = new Set(group[category].map((name) => name.toLocaleLowerCase("en")));
+        names.forEach((name) => {
+          const normalized = name.trim().toLocaleLowerCase("en");
+          if (normalized && !existingNames.has(normalized)) {
+            group[category].push(name);
+            existingNames.add(normalized);
+          }
+        });
       });
       if (!group.description && record.description) group.description = record.description;
       grouped.set(key, group);

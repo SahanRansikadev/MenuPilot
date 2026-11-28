@@ -18,11 +18,13 @@ import {
   Eye,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Menu as MenuIcon,
   Pencil,
   Save,
   Send,
   Trash2,
+  ThumbsUp,
   Users,
   Utensils,
   X,
@@ -30,7 +32,7 @@ import {
 import { API_BASE_URL } from "../../../lib/api";
 
 type AdminRole = "admin" | "kitchenTeam" | "guest";
-type AdminTab = "overview" | "users" | "bookings" | "menus" | "catalog" | "hotels" | "kitchen" | "costing";
+type AdminTab = "overview" | "users" | "bookings" | "menus" | "feedback" | "catalog" | "hotels" | "kitchen" | "costing";
 type MenuMealType = "Breakfast" | "Lunch" | "Tea time" | "Dinner" | "Barbecue" | "Other";
 type BookingStatus = "pending" | "confirmed" | "preparing" | "completed" | "cancelled";
 
@@ -85,9 +87,20 @@ type HotelEntry = {
 type MenuEntry = {
   id: string;
   hotelName: string;
-  recipeNames: string[];
+  foods: string[];
+  desserts: string[];
   mealType: MenuMealType;
   description: string;
+};
+
+type GuestFeedback = {
+  id: string;
+  name: string;
+  email: string;
+  feedback: string;
+  reply: string;
+  liked: boolean;
+  updatedAt: string;
 };
 
 type KitchenTask = {
@@ -117,9 +130,12 @@ type KitchenTask = {
 type MenuForm = {
   hotelName: string;
   mealType: MenuMealType;
-  recipeNames: string[];
+  foods: string[];
+  desserts: string[];
   description: string;
 };
+
+type MenuCategory = "foods" | "desserts";
 
 const mealTypes: MenuMealType[] = ["Breakfast", "Lunch", "Tea time", "Dinner", "Barbecue", "Other"];
 const bookingStatuses: BookingStatus[] = ["pending", "confirmed", "preparing", "completed", "cancelled"];
@@ -129,6 +145,7 @@ const tabs: Array<{ id: AdminTab; label: string; Icon: typeof LayoutDashboard }>
   { id: "users", label: "User management", Icon: Users },
   { id: "bookings", label: "Booking management", Icon: CalendarDays },
   { id: "menus", label: "Menu management", Icon: Utensils },
+  { id: "feedback", label: "Guest feedback", Icon: MessageSquare },
   { id: "catalog", label: "Foods & ingredients", Icon: Apple },
   { id: "hotels", label: "Hotel management", Icon: Building2 },
   { id: "kitchen", label: "Kitchen team", Icon: ChefHat },
@@ -138,7 +155,8 @@ const tabs: Array<{ id: AdminTab; label: string; Icon: typeof LayoutDashboard }>
 const blankMenuForm: MenuForm = {
   hotelName: "",
   mealType: "Breakfast",
-  recipeNames: [],
+  foods: [],
+  desserts: [],
   description: "",
 };
 
@@ -174,6 +192,8 @@ export default function AdminDashboardPage() {
   const [userDrafts, setUserDrafts] = useState<Record<string, AdminUserDraft>>({});
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [menus, setMenus] = useState<MenuEntry[]>([]);
+  const [feedback, setFeedback] = useState<GuestFeedback[]>([]);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>({});
   const [foods, setFoods] = useState<CatalogEntry[]>([]);
   const [ingredients, setIngredients] = useState<CatalogEntry[]>([]);
   const [hotels, setHotels] = useState<HotelEntry[]>([]);
@@ -185,7 +205,8 @@ export default function AdminDashboardPage() {
   const [message, setMessage] = useState("");
   const [editingMenuId, setEditingMenuId] = useState("");
   const [menuForm, setMenuForm] = useState<MenuForm>(blankMenuForm);
-  const [menuRecipeInput, setMenuRecipeInput] = useState("");
+  const [menuFoodInput, setMenuFoodInput] = useState("");
+  const [menuDessertInput, setMenuDessertInput] = useState("");
   const [foodName, setFoodName] = useState("");
   const [ingredientName, setIngredientName] = useState("");
   const [editingFoodId, setEditingFoodId] = useState("");
@@ -209,11 +230,12 @@ export default function AdminDashboardPage() {
     if (showLoading) setLoading(true);
     setPageError("");
     try {
-      const [account, userResult, bookingResult, menuResult, foodResult, ingredientResult, hotelResult, taskResult] = await Promise.all([
+      const [account, userResult, bookingResult, menuResult, feedbackResult, foodResult, ingredientResult, hotelResult, taskResult] = await Promise.all([
         request<{ user: { id: string; name: string } }>("/auth/me"),
         request<{ users: AdminUser[] }>("/admin/users"),
         request<{ bookings: AdminBooking[] }>("/admin/bookings"),
         request<{ menus: MenuEntry[] }>("/admin/menus"),
+        request<{ feedback: GuestFeedback[] }>("/feedback"),
         request<{ foods: CatalogEntry[] }>("/admin/foods"),
         request<{ ingredients: CatalogEntry[] }>("/admin/ingredients"),
         request<{ hotels: HotelEntry[] }>("/admin/hotels"),
@@ -228,6 +250,8 @@ export default function AdminDashboardPage() {
       ])));
       setBookings(bookingResult.bookings);
       setMenus(menuResult.menus);
+      setFeedback(feedbackResult.feedback);
+      setFeedbackDrafts(Object.fromEntries(feedbackResult.feedback.map((entry) => [entry.id, entry.reply])));
       setFoods(foodResult.foods);
       setIngredients(ingredientResult.ingredients);
       setHotels(hotelResult.hotels);
@@ -408,35 +432,38 @@ export default function AdminDashboardPage() {
     setMenuForm({
       hotelName: menu.hotelName,
       mealType: menu.mealType,
-      recipeNames: menu.recipeNames,
+      foods: menu.foods || [],
+      desserts: menu.desserts || [],
       description: menu.description,
     });
-    setMenuRecipeInput("");
+    setMenuFoodInput("");
+    setMenuDessertInput("");
     setActiveTab("menus");
   }
 
   function resetMenuForm() {
     setEditingMenuId("");
     setMenuForm(blankMenuForm);
-    setMenuRecipeInput("");
+    setMenuFoodInput("");
+    setMenuDessertInput("");
   }
 
-  function addMenuRecipe() {
-    const name = menuRecipeInput.trim().replace(/\s+/g, " ");
+  function addMenuRecipe(category: MenuCategory, input: string, setInput: (value: string) => void) {
+    const name = input.trim().replace(/\s+/g, " ");
     if (!name) return;
-    if (menuForm.recipeNames.some((recipeName) => recipeName.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      setPageError("That recipe name is already in this meal type.");
+    if (menuForm[category].some((recipeName) => recipeName.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      setPageError(`That ${category === "foods" ? "food" : "dessert"} name is already in this meal type.`);
       return;
     }
     setPageError("");
-    setMenuForm((form) => ({ ...form, recipeNames: [...form.recipeNames, name] }));
-    setMenuRecipeInput("");
+    setMenuForm((form) => ({ ...form, [category]: [...form[category], name] }));
+    setInput("");
   }
 
   async function saveMenu(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (menuForm.recipeNames.length === 0) {
-      setPageError("Add at least one recipe name before saving.");
+    if (menuForm.foods.length + menuForm.desserts.length === 0) {
+      setPageError("Add at least one food or dessert before saving.");
       return;
     }
     setBusy(true);
@@ -445,7 +472,8 @@ export default function AdminDashboardPage() {
     const body = JSON.stringify({
       hotelName: menuForm.hotelName,
       mealType: menuForm.mealType,
-      recipeNames: menuForm.recipeNames,
+      foods: menuForm.foods,
+      desserts: menuForm.desserts,
       description: menuForm.description,
     });
     try {
@@ -475,6 +503,47 @@ export default function AdminDashboardPage() {
       await loadData(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Unable to delete this menu.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveFeedbackReply(entry: GuestFeedback) {
+    const reply = (feedbackDrafts[entry.id] || "").trim();
+    if (!reply) {
+      setPageError("Enter a reply before sending it.");
+      return;
+    }
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      const result = await request<{ feedback: GuestFeedback }>(`/feedback/${entry.id}/reply`, {
+        method: "PATCH",
+        body: JSON.stringify({ reply }),
+      });
+      setFeedback((current) => current.map((item) => item.id === entry.id ? result.feedback : item));
+      setFeedbackDrafts((current) => ({ ...current, [entry.id]: result.feedback.reply }));
+      setMessage(`Reply saved for ${entry.name}.`);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Unable to save this reply.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleFeedbackLike(entry: GuestFeedback) {
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      const result = await request<{ feedback: GuestFeedback }>(`/feedback/${entry.id}/like`, {
+        method: "PATCH",
+        body: JSON.stringify({ liked: !entry.liked }),
+      });
+      setFeedback((current) => current.map((item) => item.id === entry.id ? result.feedback : item));
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Unable to update this feedback.");
     } finally {
       setBusy(false);
     }
@@ -778,31 +847,36 @@ export default function AdminDashboardPage() {
                     <div className="admin-card-heading"><div><h2>{editingMenuId ? "Update menu" : "Create a menu"}</h2><p>Add recipe names under a hotel's meal type.</p></div>{editingMenuId && <button type="button" className="admin-icon-button" aria-label="Cancel editing" onClick={resetMenuForm}><X size={16} /></button>}</div>
                     <label>Hotel or property<select required value={menuForm.hotelName} onChange={(event) => setMenuForm((form) => ({ ...form, hotelName: event.target.value }))}><option value="">Select a managed hotel</option>{hotels.map((hotel) => <option value={hotel.name} key={hotel.id}>{hotel.name} · {hotel.location}</option>)}</select>{!hotels.length && <small>Add a hotel in Hotel management before creating a menu.</small>}</label>
                     <label>Meal type<select value={menuForm.mealType} onChange={(event) => setMenuForm((form) => ({ ...form, mealType: event.target.value as MenuMealType }))}>{mealTypes.map((meal) => <option key={meal}>{meal}</option>)}</select></label>
-                    <div className="admin-recipe-editor">
-                      <label htmlFor="menu-recipe-name">Recipe names</label>
-                      <div className="admin-recipe-entry">
-                        <input
-                          id="menu-recipe-name"
-                          maxLength={100}
-                          value={menuRecipeInput}
-                          onChange={(event) => setMenuRecipeInput(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              addMenuRecipe();
-                            }
-                          }}
-                          placeholder="e.g. Coconut chicken curry"
-                        />
-                        <button type="button" className="admin-secondary-button" onClick={addMenuRecipe}>Add</button>
+                    {([
+                      { category: "foods" as const, label: "Foods", input: menuFoodInput, setInput: setMenuFoodInput, placeholder: "e.g. Coconut chicken curry" },
+                      { category: "desserts" as const, label: "Desserts", input: menuDessertInput, setInput: setMenuDessertInput, placeholder: "e.g. Watalappan" },
+                    ]).map(({ category, label, input, setInput, placeholder }) => (
+                      <div className="admin-recipe-editor" key={category}>
+                        <label htmlFor={`menu-${category}-name`}>{label}</label>
+                        <div className="admin-recipe-entry">
+                          <input
+                            id={`menu-${category}-name`}
+                            maxLength={100}
+                            value={input}
+                            onChange={(event) => setInput(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                addMenuRecipe(category, input, setInput);
+                              }
+                            }}
+                            placeholder={placeholder}
+                          />
+                          <button type="button" className="admin-secondary-button" onClick={() => addMenuRecipe(category, input, setInput)}>Add {label.toLowerCase()}</button>
+                        </div>
+                        <div className="admin-recipe-name-list">
+                          {menuForm[category].map((name, index) => (
+                            <span key={`${name}-${index}`}>{name}<button type="button" aria-label={`Remove ${name}`} onClick={() => setMenuForm((form) => ({ ...form, [category]: form[category].filter((_, itemIndex) => itemIndex !== index) }))}><X size={13} /></button></span>
+                          ))}
+                          {!menuForm[category].length && <small>Add one or more {label.toLowerCase()} using the Add button.</small>}
+                        </div>
                       </div>
-                      <div className="admin-recipe-name-list">
-                        {menuForm.recipeNames.map((name, index) => (
-                          <span key={`${name}-${index}`}>{name}<button type="button" aria-label={`Remove ${name}`} onClick={() => setMenuForm((form) => ({ ...form, recipeNames: form.recipeNames.filter((_, recipeIndex) => recipeIndex !== index) }))}><X size={13} /></button></span>
-                        ))}
-                        {!menuForm.recipeNames.length && <small>Add one or more recipe names using the Add button.</small>}
-                      </div>
-                    </div>
+                    ))}
                     <label>Menu description <small>Optional</small><textarea rows={2} maxLength={500} value={menuForm.description} onChange={(event) => setMenuForm((form) => ({ ...form, description: event.target.value }))} placeholder="Short description of this dish..." /></label>
                     <div className="admin-form-actions">{editingMenuId && <button type="button" className="admin-secondary-button" onClick={resetMenuForm}>Cancel</button>}<button className="admin-primary-button" disabled={busy}><Save size={15} />{busy ? "Saving..." : editingMenuId ? "Update menu" : "Save menu"}</button></div>
                   </form>
@@ -811,13 +885,53 @@ export default function AdminDashboardPage() {
                     {menus.map((menu) => (
                       <article className="admin-menu-card" key={menu.id}>
                         <div className="admin-menu-card-heading"><div><span className="admin-menu-meal">{menu.hotelName}</span><h3>{menu.mealType}</h3></div><div className="admin-row-actions"><button className="admin-icon-button" type="button" aria-label={`Edit ${menu.mealType} at ${menu.hotelName}`} onClick={() => editMenu(menu)}><Pencil size={15} /></button><button className="admin-icon-button danger" type="button" aria-label={`Delete ${menu.mealType} at ${menu.hotelName}`} disabled={busy} onClick={() => void deleteMenu(menu)}><Trash2 size={15} /></button></div></div>
-                        <ul className="admin-menu-recipe-list">{menu.recipeNames.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul>
+                        {!!menu.foods.length && <><b className="admin-menu-category-label">Foods</b><ul className="admin-menu-recipe-list">{menu.foods.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul></>}
+                        {!!menu.desserts.length && <><b className="admin-menu-category-label">Desserts</b><ul className="admin-menu-recipe-list">{menu.desserts.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul></>}
                         {menu.description && <p>{menu.description}</p>}
                       </article>
                     ))}
                     {!menus.length && <div className="admin-empty-state">No menus yet. Create a hotel meal type to get started.</div>}
                   </section>
                 </div>
+              )}
+
+              {activeTab === "feedback" && (
+                <section className="admin-feedback-grid" aria-label="Guest feedback">
+                  {feedback.map((entry) => (
+                    <article className="admin-card admin-feedback-card" key={entry.id}>
+                      <div className="admin-feedback-heading">
+                        <div className="admin-feedback-avatar">{entry.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>
+                        <div><h2>{entry.name}</h2><p>{entry.email}</p></div>
+                        <button
+                          type="button"
+                          className={`admin-feedback-like${entry.liked ? " is-liked" : ""}`}
+                          aria-pressed={entry.liked}
+                          disabled={busy}
+                          onClick={() => void toggleFeedbackLike(entry)}
+                        >
+                          <ThumbsUp size={15} /> {entry.liked ? "Liked" : "Like"}
+                        </button>
+                      </div>
+                      <blockquote className="admin-feedback-quote">{entry.feedback}</blockquote>
+                      <form className="admin-feedback-reply" onSubmit={(event) => { event.preventDefault(); void saveFeedbackReply(entry); }}>
+                        <label htmlFor={`feedback-reply-${entry.id}`}>Reply to guest</label>
+                        <textarea
+                          id={`feedback-reply-${entry.id}`}
+                          rows={3}
+                          maxLength={1000}
+                          required
+                          value={feedbackDrafts[entry.id] ?? entry.reply}
+                          onChange={(event) => setFeedbackDrafts((current) => ({ ...current, [entry.id]: event.target.value }))}
+                          placeholder="Write a thoughtful response..."
+                        />
+                        <button className="admin-primary-button" type="submit" disabled={busy}>
+                          <Send size={14} /> {busy ? "Saving..." : entry.reply ? "Update reply" : "Send reply"}
+                        </button>
+                      </form>
+                    </article>
+                  ))}
+                  {!feedback.length && <div className="admin-empty-state"><MessageSquare size={24} /><b>No guest feedback yet</b><span>Guest comments from their profile will appear here.</span></div>}
+                </section>
               )}
 
               {activeTab === "kitchen" && (

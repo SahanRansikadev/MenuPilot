@@ -13,7 +13,9 @@ import {
   CircleHelp,
   ClipboardList,
   LogOut,
+  MessageSquare,
   Menu as MenuIcon,
+  ThumbsUp,
   Utensils,
   Users,
   X,
@@ -44,6 +46,14 @@ type KitchenTask = {
 };
 
 type KitchenMember = { id: string; name: string; email: string };
+type GuestFeedback = {
+  id: string;
+  name: string;
+  email: string;
+  feedback: string;
+  reply: string;
+  liked: boolean;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -77,6 +87,7 @@ export default function KitchenTeamPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [member, setMember] = useState<KitchenMember | null>(null);
   const [tasks, setTasks] = useState<KitchenTask[]>([]);
+  const [feedback, setFeedback] = useState<GuestFeedback[]>([]);
   const [supplyDrafts, setSupplyDrafts] = useState<Record<string, { received: Record<string, boolean>; actualTotalPrice: string }>>({});
   const [loading, setLoading] = useState(true);
   const [busyTaskId, setBusyTaskId] = useState("");
@@ -88,12 +99,14 @@ export default function KitchenTeamPage() {
   async function loadTasks() {
     setPageError("");
     try {
-      const [account, taskResult] = await Promise.all([
+      const [account, taskResult, feedbackResult] = await Promise.all([
         request<{ user: KitchenMember }>("/auth/me"),
         request<{ tasks: KitchenTask[] }>("/kitchen/tasks"),
+        request<{ feedback: GuestFeedback[] }>("/feedback"),
       ]);
       setMember(account.user);
       setTasks(taskResult.tasks);
+      setFeedback(feedbackResult.feedback);
       setSupplyDrafts(Object.fromEntries(taskResult.tasks.map((task) => [
         task.id,
         {
@@ -193,6 +206,7 @@ export default function KitchenTeamPage() {
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="dashboard-nav" aria-label="Kitchen team">
           <Link className="active" aria-current="page" href="/dashboard/kitchen"><ClipboardList size={18} /><span>Assigned tasks</span></Link>
+          <a href="#guest-feedback" onClick={() => setSidebarOpen(false)}><MessageSquare size={18} /><span>Guest feedback</span></a>
         </nav>
         <div className="sidebar-bottom">
           <div className="sidebar-help"><span className="help-icon"><CircleHelp size={17} /></span><div><b>Kitchen coordination</b><small>Recipes and supplies.</small></div><ArrowUpRight size={16} /></div>
@@ -297,6 +311,22 @@ export default function KitchenTeamPage() {
               {!tasks.length && <div className="admin-empty-state kitchen-empty-state"><ChefHat size={25} /><b>No kitchen tasks assigned</b><span>When an administrator sends you a recipe, it will appear here.</span></div>}
             </section>
           )}
+          <section className="kitchen-feedback-section" id="guest-feedback" aria-label="Guest feedback">
+            <div className="admin-card-heading">
+              <div><h2>Guest feedback</h2><p>Guest comments for the property team to review.</p></div>
+              <span className="booking-total">{feedback.length} comments</span>
+            </div>
+            <div className="kitchen-feedback-list">
+              {feedback.map((entry) => (
+                <article className="kitchen-feedback-card" key={entry.id}>
+                  <div className="kitchen-feedback-heading"><span className="admin-feedback-avatar">{entry.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span><div><b>{entry.name}</b><small>{entry.email}</small></div>{entry.liked && <span className="kitchen-feedback-liked"><ThumbsUp size={13} /> Admin liked</span>}</div>
+                  <p className="kitchen-feedback-quote">{entry.feedback}</p>
+                  {entry.reply && <div className="kitchen-feedback-reply"><b>Admin response</b><p>{entry.reply}</p></div>}
+                </article>
+              ))}
+              {!feedback.length && <div className="admin-empty-state"><MessageSquare size={23} /><b>No guest feedback yet</b><span>Guest comments will appear here when submitted.</span></div>}
+            </div>
+          </section>
           <footer className="dashboard-footer"><span>MenuPilot Kitchen Workspace</span><span>Prepare with care</span></footer>
         </div>
       </section>

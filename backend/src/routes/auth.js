@@ -114,9 +114,19 @@ router.put("/profile", requireAuth, async (req, res) => {
   }
 
   try {
+    const existingUser = await User.findById(req.userId).select("feedback").lean();
+    if (!existingUser) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+    const feedbackChanged = (existingUser.feedback || "") !== parsed.value.feedback;
     const user = await User.findByIdAndUpdate(
       req.userId,
-      { $set: parsed.value },
+      {
+        $set: {
+          ...parsed.value,
+          ...(feedbackChanged ? { feedbackReply: "", feedbackLiked: false } : {}),
+        },
+      },
       { new: true, runValidators: true },
     )
       .select("name email phone guestCount childrenCount countryCode feedback")
