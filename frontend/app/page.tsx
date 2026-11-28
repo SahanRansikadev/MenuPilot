@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowUpRight, Menu, X, Utensils, ChefHat, CalendarDays, ClipboardCheck, Users, ChartNoAxesCombined, Sparkles, Mail, Phone, MapPin, Instagram, Facebook, Linkedin, CheckCircle2, ChevronLeft, ChevronRight, Flame, Coffee, Soup, PartyPopper } from "lucide-react";
+import { API_BASE_URL } from "../lib/api";
 
 const slides = [
  { kicker:"FOOD · PEOPLE · EXPERIENCES", title:"Every gathering deserves a", accent:"beautiful menu.", copy:"From a relaxed breakfast to a grand celebration, bring every food detail together in one simple place.", image:"https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=2000&q=88", alt:"Grilled food prepared for a gathering", caption:"Thoughtfully planned. Beautifully served." },
@@ -22,8 +23,6 @@ const occasions = [
  ["FIRE UP THE FUN","BBQ celebrations","Bring people together over the grill.","https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&w=900&q=85",Flame],
  ["MAKE IT SPECIAL","Events & functions","Thoughtful menus for life's big days.","https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=85",PartyPopper]
 ] as const;
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
 export default function Home() {
  const router=useRouter();
  const [slideIndex,setSlideIndex]=useState(0), [mobile,setMobile]=useState(false), [sent,setSent]=useState(false), [authMode,setAuthMode]=useState<"signin"|"signup"|null>(null), [authMessage,setAuthMessage]=useState(""), [authLoading,setAuthLoading]=useState(false);
@@ -76,6 +75,127 @@ export default function Home() {
   </section>
 
   <footer className="footer"><div className="footer-main"><div className="footer-about"><a className="brand footer-brand" href="#home"><span className="brand-icon"><Utensils/></span><span className="brand-title">Menu<span>Pilot</span><small>FOOD & EVENT MANAGEMENT</small></span></a><p>Bringing guest menus, kitchen teams and food costing together — so you can focus on creating memorable experiences.</p><div className="social"><a href="#contact"><Instagram/></a><a href="#contact"><Facebook/></a><a href="#contact"><Linkedin/></a></div></div><div className="footer-links"><h4>EXPLORE</h4><a href="#home">Home</a><a href="#about">About us</a><a href="#services">Our services</a><a href="#occasions">Occasions</a></div><div className="footer-links"><h4>PLATFORM</h4><a href="#services">Guest menus</a><a href="#services">Kitchen coordination</a><a href="#services">Supplier costing</a><a href="#services">Reports</a></div><div className="footer-news"><h4>STAY IN THE LOOP</h4><p>Updates and ideas for smoother food and event planning.</p><form onSubmit={e=>{e.preventDefault()}}><input type="email" required placeholder="Your email address"/><button aria-label="Subscribe"><ArrowRight/></button></form></div></div><div className="footer-bottom"><span>© 2026 MenuPilot. All rights reserved.</span><span>Plan better. Serve beautifully.</span><a href="#home">Back to top ↑</a></div></footer>
-  {authMode&&<div className="auth-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)setAuthMode(null)}}><section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="auth-close" onClick={()=>setAuthMode(null)} aria-label="Close form"><X size={19}/></button><span className="auth-icon"><Utensils size={21}/></span><div className="eyebrow"><i/>{authMode==="signin"?"WELCOME BACK":"GET STARTED"}</div><h2 id="auth-title">{authMode==="signin"?"Sign in to MenuPilot":"Create your account"}</h2><p className="auth-intro">{authMode==="signin"?"Enter your details to continue.":"Join MenuPilot to organise food and events with ease."}</p><form className="auth-form" onSubmit={async event=>{event.preventDefault();setAuthLoading(true);setAuthMessage("");const form=new FormData(event.currentTarget);const payload={email:String(form.get("email")),password:String(form.get("password")),...(authMode==="signup"?{name:String(form.get("name"))}:{})};try{const response=await fetch(`${API_BASE_URL}/auth/${authMode}`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok)throw new Error(result.error||"Authentication failed.");router.push("/dashboard");router.refresh()}catch(error){setAuthMessage(error instanceof Error?error.message:"Unable to connect. Please try again.")}finally{setAuthLoading(false)}}}>{authMode==="signup"&&<label>Full name<input type="text" name="name" autoComplete="name" placeholder="Your name" required maxLength={100}/></label>}<label>Email address<input type="email" name="email" autoComplete="email" placeholder="you@example.com" required maxLength={254}/></label><label>Password<input type="password" name="password" autoComplete={authMode==="signin"?"current-password":"new-password"} placeholder="Enter your password" minLength={authMode==="signup"?8:undefined} maxLength={72} required/></label><button className="btn primary" type="submit" disabled={authLoading}>{authLoading?"Please wait...":authMode==="signin"?"Sign In":"Create Account"}<ArrowRight size={17}/></button>{authMessage&&<p className="auth-feedback" role="status">{authMessage}</p>}</form><p className="auth-switch">{authMode==="signin"?"Don't have an account?":"Already have an account?"} <button onClick={()=>openAuth(authMode==="signin"?"signup":"signin")}>{authMode==="signin"?"Sign Up":"Sign In"}</button></p><small className="auth-form-note">Your account is protected with a secure session.</small></section></div>}
+  {authMode && (
+    <div
+      className="auth-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setAuthMode(null);
+      }}
+    >
+      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <button className="auth-close" onClick={() => setAuthMode(null)} aria-label="Close form">
+          <X size={19} />
+        </button>
+        <span className="auth-icon"><Utensils size={21} /></span>
+        <div className="eyebrow"><i />{authMode === "signin" ? "WELCOME BACK" : "GET STARTED"}</div>
+        <h2 id="auth-title">
+          {authMode === "signin" ? "Sign in to MenuPilot" : "Create your account"}
+        </h2>
+        <p className="auth-intro">
+          {authMode === "signin"
+            ? "Enter your details to continue."
+            : "Join MenuPilot to organise food and events with ease."}
+        </p>
+        <form
+          className="auth-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setAuthLoading(true);
+            setAuthMessage("");
+            const form = new FormData(event.currentTarget);
+            const payload = {
+              email: String(form.get("email")),
+              password: String(form.get("password")),
+              ...(authMode === "signup" ? { name: String(form.get("name")) } : {}),
+            };
+            const expectedStatus = authMode === "signup" ? 201 : 200;
+
+            try {
+              const response = await fetch(`${API_BASE_URL}/auth/${authMode}`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              const result: {
+                user?: { id?: string; email?: string };
+                error?: string;
+              } = await response.json();
+
+              if (
+                response.status !== expectedStatus ||
+                !result.user?.id ||
+                !result.user.email
+              ) {
+                throw new Error(result.error || "Authentication failed.");
+              }
+
+              router.push("/dashboard");
+              router.refresh();
+            } catch (error) {
+              setAuthMessage(
+                error instanceof Error ? error.message : "Unable to connect. Please try again.",
+              );
+            } finally {
+              setAuthLoading(false);
+            }
+          }}
+        >
+          {authMode === "signup" && (
+            <label>
+              Full name
+              <input
+                type="text"
+                name="name"
+                autoComplete="name"
+                placeholder="Your name"
+                required
+                maxLength={100}
+              />
+            </label>
+          )}
+          <label>
+            Email address
+            <input
+              type="email"
+              name="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              required
+              maxLength={254}
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              name="password"
+              autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+              placeholder="Enter your password"
+              minLength={authMode === "signup" ? 8 : undefined}
+              maxLength={72}
+              required
+            />
+          </label>
+          <button className="btn primary" type="submit" disabled={authLoading}>
+            {authLoading
+              ? "Please wait..."
+              : authMode === "signin"
+                ? "Sign In"
+                : "Create Account"}
+            <ArrowRight size={17} />
+          </button>
+          {authMessage && <p className="auth-feedback" role="status">{authMessage}</p>}
+        </form>
+        <p className="auth-switch">
+          {authMode === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
+          <button onClick={() => openAuth(authMode === "signin" ? "signup" : "signin")}>
+            {authMode === "signin" ? "Sign Up" : "Sign In"}
+          </button>
+        </p>
+        <small className="auth-form-note">Your account is protected with a secure session.</small>
+      </section>
+    </div>
+  )}
  </main>
 }

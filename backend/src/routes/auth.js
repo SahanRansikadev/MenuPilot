@@ -17,10 +17,12 @@ const authAttemptsLimit = rateLimit({
 });
 
 function sessionCookieOptions() {
+  const isProduction = process.env.NODE_ENV === "production";
+
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
     path: "/",
   };
 }
@@ -122,19 +124,25 @@ router.post("/signup", authAttemptsLimit, async (req, res) => {
   }
 
   try {
-    const user = await User.create({
+    const createdUser = await User.create({
       name: payload.name,
       email: payload.email,
       passwordHash: await bcrypt.hash(payload.password, 12),
     });
-    return await createSession(res, user, 201);
+
+    const savedUser = await User.findById(createdUser._id).select("name email").lean();
+    if (!savedUser || savedUser.email !== payload.email) {
+      throw new Error("Unable to verify newly created account.");
+    }
+
+    return await createSession(res, savedUser, 201);
   } catch (error) {
     if (isDuplicateKeyError(error)) {
       return res.status(409).json({ error: "An account with this email already exists." });
     }
 
     console.error("Sign-up failed:", error);
-    return res.status(503).json({ error: "Unable to create your account right now." });
+    return res.status(500).json({ error: "Unable to create your account right now." });
   }
 });
 
@@ -153,7 +161,7 @@ router.post("/signin", authAttemptsLimit, async (req, res) => {
     return await createSession(res, user, 200);
   } catch (error) {
     console.error("Sign-in failed:", error);
-    return res.status(503).json({ error: "Unable to sign in right now." });
+    return res.status(500).json({ error: "Unable to sign in right now." });
   }
 });
 

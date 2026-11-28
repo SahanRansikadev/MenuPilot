@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "../../lib/api";
 import {
   ArrowUpRight,
   Bell,
@@ -41,8 +42,6 @@ type AuthenticatedUser = {
   name: string;
   email: string;
 };
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 const bookings = [
   {
