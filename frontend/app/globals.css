@@ -26,8 +26,8 @@ html::-webkit-scrollbar{width:10px}
 .section-booking-list{display:grid}
 .section-booking-row{display:flex;align-items:flex-start;gap:16px;padding:20px 0;border-top:1px solid #edf1f5}
 .section-booking-copy{flex:1;min-width:0}
-.section-booking-copy h3,.section-activity-row h3{margin:0;color:#1b2d45;font:700 14px Manrope,sans-serif}
-.section-booking-copy p,.section-activity-row p{margin:6px 0 12px;color:#77869a;font-size:12px}
+.section-booking-copy h3{margin:0;color:#1b2d45;font:700 14px Manrope,sans-serif}
+.section-booking-copy p{margin:6px 0 12px;color:#77869a;font-size:12px}
 .section-booking-copy>span{display:inline-flex;align-items:center;gap:6px;margin:0 18px 4px 0;color:#78879a;font-size:11px}
 .section-booking-message{padding:18px 0;color:#77869a;font-size:12px}
 .section-booking-message.error{color:#bf4b4b}
@@ -40,18 +40,27 @@ html::-webkit-scrollbar{width:10px}
 .section-preference-card{display:flex;align-items:center;gap:14px}
 .section-preference-card>div{flex:1}
 .section-preference-check{display:inline-flex;align-items:center;gap:5px;color:#258768;font-size:11px;font-weight:700}
-.section-activity-list{display:grid}
-.section-activity-row{display:flex;align-items:flex-start;gap:14px;padding:20px 0;border-top:1px solid #edf1f5}
-.section-activity-icon{width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;background:#edf3ff;color:#2864df}
-.section-activity-icon.green{background:#e8f7f0;color:#258768}
-.section-activity-icon.violet{background:#f1edff;color:#7555c7}
-.section-activity-icon.gold{background:#fff5e6;color:#ba8433}
-.section-activity-row small{display:inline-flex;align-items:center;gap:5px;color:#929eae;font-size:10px}
 .dashboard-section-content>.dashboard-footer{margin-top:auto}
 @media(max-width:760px){.section-page-grid{grid-template-columns:1fr}.section-page-card{padding:19px}.section-booking-row{flex-wrap:wrap}.section-booking-row>.booking-status{margin-left:52px}.section-page-card-heading{align-items:flex-start}}
 .overview-planner-section{max-width:940px;margin-top:22px}
 .overview-planner-title{margin-bottom:14px}
 .overview-planner-title h2{margin:8px 0 0;color:var(--navy);font:800 21px Manrope,sans-serif}
+.menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.menu-property-card{overflow:hidden;border:1px solid #e8edf3;border-radius:8px;background:#fff;box-shadow:0 6px 20px #142b4908}
+.menu-property-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:21px 21px 17px}
+.menu-property-heading h2{margin:0;color:#1b2d45;font:800 16px Manrope,sans-serif}
+.menu-property-heading p{margin:7px 0 0;color:#8794a5;font-size:10px}
+.menu-property-description{margin:0;padding:0 21px 16px;color:#77869a;font-size:10px;line-height:1.6}
+.menu-demo-badge{flex:none;padding:6px 8px;border-radius:4px;background:#fff5e6;color:#b78435;font-size:8px;font-weight:700;letter-spacing:.5px}
+.menu-view-button{display:inline-flex;align-items:center;gap:7px;margin:0 21px 20px;padding:9px 12px;border:1px solid #dfe7f3;border-radius:5px;background:#fff;color:var(--blue);font-size:10px;font-weight:700;cursor:pointer}
+.menu-view-button:hover{border-color:#b9ccef;background:#f8faff}
+.menu-meal-list{display:grid;padding:0 21px 20px}
+.menu-meal{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-top:1px solid #edf1f5}
+.menu-meal-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:7px;background:#edf3ff;color:var(--blue)}
+.menu-meal h3{margin:1px 0 5px;color:#344a65;font:700 11px Manrope,sans-serif}
+.menu-meal p{margin:0;color:#77869a;font-size:10px;line-height:1.6}
+.menu-meal small{display:block;margin-top:5px;color:#37906e;font-size:8px;font-weight:700}
+@media(max-width:760px){.menu-grid{grid-template-columns:1fr}.menu-property-heading{padding:18px 18px 15px}.menu-property-description{padding-right:18px;padding-left:18px}.menu-view-button{margin-left:18px}.menu-meal-list{padding-right:18px;padding-left:18px}}
 .overview-calendar-section{max-width:440px;margin:0}
 .overview-meal-content{margin-top:16px}
 .overview-preference-icon{width:34px;height:34px;display:grid;place-items:center;flex:none;border-radius:8px;background:#f3efff;color:#8771d0}
@@ -173,3 +182,5 @@ html::-webkit-scrollbar-thumb{background:var(--blue);border:2px solid #edf1f7;bo
 @media(max-width:950px){.booking-form-layout{grid-template-columns:minmax(0,1fr) 255px}.booking-step-card{padding:22px 20px}.booking-step-copy small{display:none}.booking-step{justify-content:center}}
 @media(max-width:760px){.booking-create-content{padding-top:24px}.booking-form-heading{align-items:flex-start}.booking-form-heading h1{font-size:26px}.booking-form-layout{grid-template-columns:1fr}.booking-summary-card{position:static;order:-1}.booking-summary-card{padding:16px}.booking-summary-card h2{margin-top:11px}.booking-summary-divider{margin:11px 0}.booking-summary-row{margin:9px 0}.booking-summary-tip{margin-top:12px}.booking-stepper{gap:4px;padding:13px 10px}.booking-stepper-track{top:28px;left:10%;right:10%}.booking-step{flex-direction:column;gap:5px;text-align:center}.booking-step-icon{width:27px;height:27px}.booking-step-copy b{font-size:7px}.booking-step-copy small{display:none}.booking-step-card{padding:20px 17px}.booking-complete-card{margin:12px auto;padding:32px 20px}.booking-complete-card h1{font-size:22px}.booking-complete-summary{grid-template-columns:1fr;justify-items:start;padding:12px}.booking-complete-summary span{justify-content:flex-start}}
 @media(max-width:430px){.booking-fields-grid,.meal-choice-grid{grid-template-columns:1fr}.booking-field.full-field{grid-column:auto}.booking-stepper{margin-bottom:11px}.booking-step-copy b{font-size:6px}.booking-step-actions .booking-primary-button,.booking-step-actions .booking-secondary-button{padding:0 10px}.booking-review-grid{gap:9px}.booking-form-heading{gap:10px}.booking-cancel-link{font-size:8px}.booking-demo-note{text-align:left}}
+.brand-icon,.dashboard-brand-icon,.auth-icon{position:relative;overflow:hidden;background:#fff;border:1px solid #e8edf3;color:var(--blue);box-shadow:0 4px 12px #142b4910}
+.brand-icon::before,.dashboard-brand-icon::before,.auth-icon::before{content:"";position:absolute;inset:2px;background:url("https://res.cloudinary.com/uf1peiew/image/upload/v1795887232/Blue_Line-Art_Chef_Mascot.png") center/contain no-repeat}
