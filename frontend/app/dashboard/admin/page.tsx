@@ -6,12 +6,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  Apple,
   Bell,
   BookOpen,
+  Building2,
   CalendarDays,
   ChefHat,
   ChevronRight,
   CircleHelp,
+  Eye,
   LayoutDashboard,
   LogOut,
   Menu as MenuIcon,
@@ -26,7 +29,7 @@ import {
 import { API_BASE_URL } from "../../../lib/api";
 
 type AdminRole = "admin" | "kitchenTeam" | "guest";
-type AdminTab = "overview" | "users" | "bookings" | "menus" | "kitchen";
+type AdminTab = "overview" | "users" | "bookings" | "menus" | "catalog" | "hotels" | "kitchen";
 type MenuMealType = "Breakfast" | "Lunch" | "Tea time" | "Dinner" | "Barbecue" | "Other";
 type BookingStatus = "pending" | "confirmed" | "preparing" | "completed" | "cancelled";
 
@@ -47,8 +50,31 @@ type AdminBooking = {
   status: BookingStatus;
   guestCount: number;
   childrenCount: number;
-  meals: Array<{ type: string; name?: string; time: string; foods: Array<{ name: string }> }>;
+  driverCount: number;
+  guideCount: number;
+  meals: Array<{
+    type: string;
+    name?: string;
+    time: string;
+    foods: Array<{ name: string }>;
+    ingredients: Array<{ name: string }>;
+    hasIngredients: boolean;
+  }>;
+  isVegetarian: boolean;
+  hasAllergies: boolean;
+  allergyCount: number;
   notes: string;
+};
+
+type CatalogEntry = { id: string; name: string };
+type HotelEntry = {
+  id: string;
+  name: string;
+  location: string;
+  description: string;
+  contactName: string;
+  phone: string;
+  email: string;
 };
 
 type MenuEntry = {
@@ -92,6 +118,8 @@ const tabs: Array<{ id: AdminTab; label: string; Icon: typeof LayoutDashboard }>
   { id: "users", label: "User management", Icon: Users },
   { id: "bookings", label: "Booking management", Icon: CalendarDays },
   { id: "menus", label: "Menu management", Icon: Utensils },
+  { id: "catalog", label: "Foods & ingredients", Icon: Apple },
+  { id: "hotels", label: "Hotel management", Icon: Building2 },
   { id: "kitchen", label: "Kitchen team", Icon: ChefHat },
 ];
 
@@ -103,6 +131,8 @@ const blankMenuForm: MenuForm = {
   ingredientsText: "",
   instructions: "",
 };
+
+const blankHotelForm = { name: "", location: "", description: "", contactName: "", phone: "", email: "" };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -133,6 +163,9 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [menus, setMenus] = useState<MenuEntry[]>([]);
+  const [foods, setFoods] = useState<CatalogEntry[]>([]);
+  const [ingredients, setIngredients] = useState<CatalogEntry[]>([]);
+  const [hotels, setHotels] = useState<HotelEntry[]>([]);
   const [tasks, setTasks] = useState<KitchenTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -141,6 +174,13 @@ export default function AdminDashboardPage() {
   const [message, setMessage] = useState("");
   const [editingMenuId, setEditingMenuId] = useState("");
   const [menuForm, setMenuForm] = useState<MenuForm>(blankMenuForm);
+  const [foodName, setFoodName] = useState("");
+  const [ingredientName, setIngredientName] = useState("");
+  const [editingFoodId, setEditingFoodId] = useState("");
+  const [editingIngredientId, setEditingIngredientId] = useState("");
+  const [editingHotelId, setEditingHotelId] = useState("");
+  const [hotelForm, setHotelForm] = useState(blankHotelForm);
+  const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
   const [taskForm, setTaskForm] = useState({ assignedTo: "", bookingId: "", menuId: "", notes: "" });
   const router = useRouter();
 
@@ -148,11 +188,14 @@ export default function AdminDashboardPage() {
     if (showLoading) setLoading(true);
     setPageError("");
     try {
-      const [account, userResult, bookingResult, menuResult, taskResult] = await Promise.all([
+      const [account, userResult, bookingResult, menuResult, foodResult, ingredientResult, hotelResult, taskResult] = await Promise.all([
         request<{ user: { id: string; name: string } }>("/auth/me"),
         request<{ users: AdminUser[] }>("/admin/users"),
         request<{ bookings: AdminBooking[] }>("/admin/bookings"),
         request<{ menus: MenuEntry[] }>("/admin/menus"),
+        request<{ foods: CatalogEntry[] }>("/admin/foods"),
+        request<{ ingredients: CatalogEntry[] }>("/admin/ingredients"),
+        request<{ hotels: HotelEntry[] }>("/admin/hotels"),
         request<{ tasks: KitchenTask[] }>("/admin/kitchen/tasks"),
       ]);
       setAdminName(account.user.name);
@@ -160,7 +203,14 @@ export default function AdminDashboardPage() {
       setUsers(userResult.users);
       setBookings(bookingResult.bookings);
       setMenus(menuResult.menus);
+      setFoods(foodResult.foods);
+      setIngredients(ingredientResult.ingredients);
+      setHotels(hotelResult.hotels);
       setTasks(taskResult.tasks);
+      setMenuForm((current) => ({
+        ...current,
+        hotelName: current.hotelName || hotelResult.hotels[0]?.name || "",
+      }));
       setTaskForm((current) => ({
         ...current,
         assignedTo: current.assignedTo || userResult.users.find((user) => user.role === "kitchenTeam")?.id || "",
@@ -209,6 +259,102 @@ export default function AdminDashboardPage() {
       await loadData(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Unable to update booking status.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveCatalogEntry(kind: "food" | "ingredient", name: string, id: string) {
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      const resource = kind === "food" ? "foods" : "ingredients";
+      await request(id ? `/admin/${resource}/${id}` : `/admin/${resource}`, {
+        method: id ? "PUT" : "POST",
+        body: JSON.stringify({ name }),
+      });
+      setMessage(`${kind === "food" ? "Food" : "Ingredient"} ${id ? "updated" : "added"}.`);
+      if (kind === "food") {
+        setFoodName("");
+        setEditingFoodId("");
+      } else {
+        setIngredientName("");
+        setEditingIngredientId("");
+      }
+      await loadData(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : `Unable to save this ${kind}.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteCatalogEntry(kind: "food" | "ingredient", entry: CatalogEntry) {
+    if (!window.confirm(`Remove "${entry.name}" from the ${kind} catalog?`)) return;
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      await request(`/admin/${kind === "food" ? "foods" : "ingredients"}/${entry.id}`, { method: "DELETE" });
+      setMessage(`${kind === "food" ? "Food" : "Ingredient"} removed.`);
+      await loadData(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : `Unable to remove this ${kind}.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveHotel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      await request(editingHotelId ? `/admin/hotels/${editingHotelId}` : "/admin/hotels", {
+        method: editingHotelId ? "PUT" : "POST",
+        body: JSON.stringify(hotelForm),
+      });
+      setMessage(editingHotelId ? "Hotel details updated." : "Hotel added.");
+      setEditingHotelId("");
+      setHotelForm(blankHotelForm);
+      await loadData(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Unable to save hotel details.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function editHotel(hotel: HotelEntry) {
+    setEditingHotelId(hotel.id);
+    setHotelForm({
+      name: hotel.name,
+      location: hotel.location,
+      description: hotel.description,
+      contactName: hotel.contactName,
+      phone: hotel.phone,
+      email: hotel.email,
+    });
+    setActiveTab("hotels");
+  }
+
+  async function deleteHotel(hotel: HotelEntry) {
+    if (!window.confirm(`Delete "${hotel.name}"?`)) return;
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      await request(`/admin/hotels/${hotel.id}`, { method: "DELETE" });
+      setMessage("Hotel deleted.");
+      if (editingHotelId === hotel.id) {
+        setEditingHotelId("");
+        setHotelForm(blankHotelForm);
+      }
+      await loadData(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Unable to delete this hotel.");
     } finally {
       setBusy(false);
     }
@@ -378,6 +524,8 @@ export default function AdminDashboardPage() {
                     { label: "Active bookings", value: bookings.filter((booking) => !["completed", "cancelled"].includes(booking.status)).length, Icon: CalendarDays },
                     { label: "Menu recipes", value: menus.length, Icon: BookOpen },
                     { label: "Kitchen tasks", value: tasks.filter((task) => !["ready", "cancelled"].includes(task.status)).length, Icon: ChefHat },
+                    { label: "Hotels", value: hotels.length, Icon: Building2 },
+                    { label: "Foods & ingredients", value: foods.length + ingredients.length, Icon: Apple },
                   ].map(({ label, value, Icon }) => (
                     <article className="admin-stat-card" key={label}><span><Icon size={18} /></span><small>{label}</small><b>{value}</b></article>
                   ))}
@@ -421,7 +569,7 @@ export default function AdminDashboardPage() {
               {activeTab === "bookings" && (
                 <section className="admin-card">
                   <div className="admin-card-heading"><div><h2>All bookings</h2><p>Review guest plans and update their booking status.</p></div><span className="booking-total">{bookings.length} bookings</span></div>
-                  <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>GUEST / DATE</th><th>PARTY</th><th>MEALS</th><th>BOOKING STATUS</th></tr></thead><tbody>
+                  <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>GUEST / DATE</th><th>PARTY</th><th>MEALS</th><th>BOOKING STATUS</th><th>DETAILS</th></tr></thead><tbody>
                     {bookings.map((booking) => (
                       <tr key={booking.id}>
                         <td><b>{booking.guest.name}</b><small>{booking.guest.email} · {formatDate(booking.date)}</small></td>
@@ -431,18 +579,105 @@ export default function AdminDashboardPage() {
                           const status = event.target.value;
                           if (bookingStatuses.includes(status as BookingStatus)) void updateBookingStatus(booking.id, status as BookingStatus);
                         }}>{bookingStatuses.map((status) => <option value={status} key={status}>{status}</option>)}</select></td>
+                        <td><button type="button" className="admin-icon-button" aria-label={`View booking for ${booking.guest.name}`} onClick={() => setSelectedBooking(booking)}><Eye size={16} /></button></td>
                       </tr>
                     ))}
-                    {!bookings.length && <tr><td colSpan={4}>No bookings found.</td></tr>}
+                    {!bookings.length && <tr><td colSpan={5}>No bookings found.</td></tr>}
                   </tbody></table></div>
+                  {selectedBooking && (
+                    <div className="admin-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedBooking(null); }}>
+                      <section className="admin-booking-modal" role="dialog" aria-modal="true" aria-labelledby="admin-booking-title">
+                        <button className="admin-modal-close" type="button" aria-label="Close booking details" onClick={() => setSelectedBooking(null)}><X size={18} /></button>
+                        <div className="dashboard-eyebrow"><i /> BOOKING DETAILS</div>
+                        <h2 id="admin-booking-title">{selectedBooking.guest.name}</h2>
+                        <p className="admin-modal-subtitle">{selectedBooking.guest.email} · {formatDate(selectedBooking.date)}</p>
+                        <div className="admin-booking-facts">
+                          <span><b>Guests</b>{selectedBooking.guestCount} ({selectedBooking.childrenCount} children)</span>
+                          <span><b>Drivers</b>{selectedBooking.driverCount}</span>
+                          <span><b>Guides</b>{selectedBooking.guideCount}</span>
+                          <span><b>Status</b>{selectedBooking.status}</span>
+                        </div>
+                        <div className="admin-booking-facts">
+                          <span><b>Diet</b>{selectedBooking.isVegetarian ? "Vegetarian" : "No vegetarian preference"}</span>
+                          <span><b>Allergies</b>{selectedBooking.hasAllergies ? `${selectedBooking.allergyCount} guest(s)` : "None reported"}</span>
+                        </div>
+                        <h3>Meals and selections</h3>
+                        <div className="admin-booking-meals">
+                          {selectedBooking.meals.map((meal, index) => (
+                            <article key={`${meal.type}-${meal.time}-${index}`}>
+                              <b>{meal.name || meal.type} · {meal.time}</b>
+                              <span>Foods: {meal.foods.map((food) => food.name).join(", ") || "None"}</span>
+                              {meal.hasIngredients && <span>Guest bringing: {meal.ingredients.map((ingredient) => ingredient.name).join(", ") || "Not specified"}</span>}
+                            </article>
+                          ))}
+                        </div>
+                        {selectedBooking.notes && <div className="admin-booking-notes"><b>Guest notes</b><p>{selectedBooking.notes}</p></div>}
+                      </section>
+                    </div>
+                  )}
                 </section>
+              )}
+
+              {activeTab === "catalog" && (
+                <section className="admin-catalog-grid">
+                  {([
+                    { kind: "food" as const, title: "Foods", entries: foods, value: foodName, setValue: setFoodName, editId: editingFoodId, setEditId: setEditingFoodId },
+                    { kind: "ingredient" as const, title: "Ingredients", entries: ingredients, value: ingredientName, setValue: setIngredientName, editId: editingIngredientId, setEditId: setEditingIngredientId },
+                  ]).map(({ kind, title, entries, value, setValue, editId, setEditId }) => (
+                    <section className="admin-card admin-catalog-card" key={kind}>
+                      <div className="admin-card-heading"><div><h2>{title}</h2><p>Add, rename or remove entries in the shared catalog.</p></div><span className="booking-total">{entries.length}</span></div>
+                      <form className="admin-catalog-form" onSubmit={(event) => { event.preventDefault(); void saveCatalogEntry(kind, value, editId); }}>
+                        <label htmlFor={`${kind}-catalog-name`}>{editId ? `Rename ${kind}` : `Add ${kind}`}</label>
+                        <div><input id={`${kind}-catalog-name`} required maxLength={100} value={value} onChange={(event) => setValue(event.target.value)} placeholder={kind === "food" ? "e.g. String hoppers" : "e.g. Coconut milk"} /><button type="submit" className="admin-primary-button" disabled={busy}><Save size={14} />{editId ? "Update" : "Add"}</button></div>
+                        {editId && <button type="button" className="admin-inline-cancel" onClick={() => { setEditId(""); setValue(""); }}>Cancel rename</button>}
+                      </form>
+                      <div className="admin-catalog-list">
+                        {entries.map((entry) => (
+                          <div className="admin-catalog-row" key={entry.id}>
+                            <span>{entry.name}</span>
+                            <div><button className="admin-icon-button" type="button" aria-label={`Rename ${entry.name}`} onClick={() => { setEditId(entry.id); setValue(entry.name); }}><Pencil size={14} /></button><button className="admin-icon-button danger" type="button" aria-label={`Remove ${entry.name}`} disabled={busy} onClick={() => void deleteCatalogEntry(kind, entry)}><Trash2 size={14} /></button></div>
+                          </div>
+                        ))}
+                        {!entries.length && <p className="admin-empty-state">No {title.toLowerCase()} added yet.</p>}
+                      </div>
+                    </section>
+                  ))}
+                </section>
+              )}
+
+              {activeTab === "hotels" && (
+                <div className="admin-hotels-layout">
+                  <form className="admin-card admin-hotel-form" onSubmit={saveHotel}>
+                    <div className="admin-card-heading"><div><h2>{editingHotelId ? "Update hotel" : "Add a hotel"}</h2><p>Keep property details available for menu planning.</p></div>{editingHotelId && <button type="button" className="admin-icon-button" aria-label="Cancel hotel edit" onClick={() => { setEditingHotelId(""); setHotelForm(blankHotelForm); }}><X size={16} /></button>}</div>
+                    <label>Hotel name<input required maxLength={100} value={hotelForm.name} onChange={(event) => setHotelForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Villa Serene" /></label>
+                    <label>Location<input required maxLength={150} value={hotelForm.location} onChange={(event) => setHotelForm((form) => ({ ...form, location: event.target.value }))} placeholder="City, province" /></label>
+                    <label>Description <small>Optional</small><textarea rows={3} maxLength={500} value={hotelForm.description} onChange={(event) => setHotelForm((form) => ({ ...form, description: event.target.value }))} placeholder="A short description of the property..." /></label>
+                    <label>Contact person <small>Optional</small><input maxLength={100} value={hotelForm.contactName} onChange={(event) => setHotelForm((form) => ({ ...form, contactName: event.target.value }))} placeholder="Hotel contact name" /></label>
+                    <div className="admin-form-row">
+                      <label>Contact phone<input type="tel" maxLength={24} value={hotelForm.phone} onChange={(event) => setHotelForm((form) => ({ ...form, phone: event.target.value }))} placeholder="+94..." /></label>
+                      <label>Contact email<input type="email" maxLength={254} value={hotelForm.email} onChange={(event) => setHotelForm((form) => ({ ...form, email: event.target.value }))} placeholder="hotel@example.com" /></label>
+                    </div>
+                    <div className="admin-form-actions">{editingHotelId && <button type="button" className="admin-secondary-button" onClick={() => { setEditingHotelId(""); setHotelForm(blankHotelForm); }}>Cancel</button>}<button type="submit" className="admin-primary-button" disabled={busy}><Save size={15} />{busy ? "Saving..." : editingHotelId ? "Update hotel" : "Save hotel"}</button></div>
+                  </form>
+                  <section className="admin-hotel-list">
+                    <div className="admin-card-heading"><div><h2>Hotels</h2><p>{hotels.length} properties managed.</p></div></div>
+                    {hotels.map((hotel) => (
+                      <article className="admin-hotel-card" key={hotel.id}>
+                        <div className="admin-menu-card-heading"><div><h3>{hotel.name}</h3><small>{hotel.location}</small></div><div className="admin-row-actions"><button type="button" className="admin-icon-button" aria-label={`Edit ${hotel.name}`} onClick={() => editHotel(hotel)}><Pencil size={15} /></button><button type="button" className="admin-icon-button danger" aria-label={`Delete ${hotel.name}`} disabled={busy} onClick={() => void deleteHotel(hotel)}><Trash2 size={15} /></button></div></div>
+                        {hotel.description && <p>{hotel.description}</p>}
+                        {(hotel.contactName || hotel.phone || hotel.email) && <small className="admin-hotel-contact">{[hotel.contactName, hotel.phone, hotel.email].filter(Boolean).join(" · ")}</small>}
+                      </article>
+                    ))}
+                    {!hotels.length && <div className="admin-empty-state">No hotels added yet. Create one to use it in menus.</div>}
+                  </section>
+                </div>
               )}
 
               {activeTab === "menus" && (
                 <div className="admin-menus-layout">
                   <form className="admin-card admin-menu-form" onSubmit={saveMenu}>
                     <div className="admin-card-heading"><div><h2>{editingMenuId ? "Update menu" : "Create a menu"}</h2><p>Add a recipe that can be sent to a kitchen team.</p></div>{editingMenuId && <button type="button" className="admin-icon-button" aria-label="Cancel editing" onClick={resetMenuForm}><X size={16} /></button>}</div>
-                    <label>Hotel or property<input required maxLength={100} value={menuForm.hotelName} onChange={(event) => setMenuForm((form) => ({ ...form, hotelName: event.target.value }))} placeholder="e.g. Villa Serene" /></label>
+                    <label>Hotel or property<select required value={menuForm.hotelName} onChange={(event) => setMenuForm((form) => ({ ...form, hotelName: event.target.value }))}><option value="">Select a managed hotel</option>{hotels.map((hotel) => <option value={hotel.name} key={hotel.id}>{hotel.name} · {hotel.location}</option>)}</select>{!hotels.length && <small>Add a hotel in Hotel management before creating a menu.</small>}</label>
                     <div className="admin-form-row">
                       <label>Recipe name<input required maxLength={100} value={menuForm.name} onChange={(event) => setMenuForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Coconut chicken curry" /></label>
                       <label>Meal type<select value={menuForm.mealType} onChange={(event) => setMenuForm((form) => ({ ...form, mealType: event.target.value as MenuMealType }))}>{mealTypes.map((meal) => <option key={meal}>{meal}</option>)}</select></label>

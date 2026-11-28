@@ -45,12 +45,14 @@ For local smoke testing, run `npm test`, then `npm run dev` and request `http://
 
 - `POST /api/auth/signup` — `{ "name": "...", "email": "...", "password": "..." }`
 - `POST /api/auth/signin` — `{ "email": "...", "password": "..." }`
-- `GET /api/auth/me` — returns the authenticated user's name and email
+- `GET /api/auth/me` — returns the authenticated user's identity and role
 - `POST /api/auth/logout` — revokes the session and clears its cookie
 - `GET /api/admin/users` — admin-only account list
 - `PATCH /api/admin/users/:id/role` — admin-only role management
 - `GET /api/admin/bookings` and `PATCH /api/admin/bookings/:id/status` — admin booking management
+- `GET /api/admin/hotels`, `POST /api/admin/hotels`, `PUT /api/admin/hotels/:id`, `DELETE /api/admin/hotels/:id` — admin hotel management
 - `GET /api/admin/menus`, `POST /api/admin/menus`, `PUT /api/admin/menus/:id`, `DELETE /api/admin/menus/:id` — admin menu and recipe management
+- `GET`/`POST /api/admin/foods` and `/api/admin/ingredients`, plus `PUT`/`DELETE /api/admin/foods/:id` and `/api/admin/ingredients/:id` — admin catalog management; items referenced by existing bookings cannot be deleted
 - `GET /api/admin/kitchen/tasks` and `POST /api/admin/kitchen/tasks` — assign a menu recipe and its ingredient list to a kitchen team member for a booking
 - `GET /api/kitchen/tasks` — kitchen-team member's assigned tasks
 - `PATCH /api/kitchen/tasks/:id/status` — kitchen team advances an assigned task through accepted, preparing, and ready

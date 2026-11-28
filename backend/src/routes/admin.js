@@ -1,11 +1,15 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const Booking = require("../models/Booking");
+const Food = require("../models/Food");
+const Hotel = require("../models/Hotel");
+const Ingredient = require("../models/Ingredient");
 const KitchenTask = require("../models/KitchenTask");
 const Menu = require("../models/Menu");
 const User = require("../models/User");
 const requireAuth = require("../middleware/require-auth");
 const requireRole = require("../middleware/require-role");
+const parseHotelPayload = require("../utils/hotel-validation");
 const parseMenuPayload = require("../utils/menu-validation");
 
 const router = express.Router();
@@ -42,6 +46,22 @@ function serializeMenu(menu) {
   };
 }
 
+function serializeHotel(hotel) {
+  return {
+    id: hotel._id.toString(),
+    name: hotel.name,
+    location: hotel.location,
+    description: hotel.description || "",
+    contactName: hotel.contactName || "",
+    phone: hotel.phone || "",
+    email: hotel.email || "",
+  };
+}
+
+function serializeCatalogEntry(entry) {
+  return { id: entry._id.toString(), name: entry.name };
+}
+
 function serializeBooking(booking) {
   const guest = booking.userId && booking.userId.name ? booking.userId : null;
   return {
@@ -68,8 +88,87 @@ function serializeBooking(booking) {
     })),
     isVegetarian: booking.isVegetarian,
     hasAllergies: booking.hasAllergies,
+    allergyCount: booking.allergyCount || 0,
     notes: booking.notes || "",
   };
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseCatalogName(payload) {
+  const name = typeof payload?.name === "string" ? payload.name.trim().replace(/\s+/g, " ") : "";
+  if (!name || name.length > 100) return null;
+  return { name, normalizedName: name.toLocaleLowerCase("en") };
+}
+
+function registerCatalogRoutes(resource, Model, label, bookingReference) {
+  router.get(`/${resource}`, async (req, res) => {
+    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+    try {
+      const filter = search ? { name: new RegExp(escapeRegex(search), "i") } : {};
+      const entries = await Model.find(filter).select("name").sort({ name: 1 }).limit(1000).lean();
+      return res.json({ [resource]: entries.map(serializeCatalogEntry) });
+    } catch (error) {
+      console.error(`Admin ${label} lookup failed:`, error);
+      return res.status(500).json({ error: `Unable to load ${label} right now.` });
+    }
+  });
+
+  router.post(`/${resource}`, async (req, res) => {
+    const parsed = parseCatalogName(req.body);
+    if (!parsed) return res.status(400).json({ error: `${label} names must be between 1 and 100 characters.` });
+
+    try {
+      const entry = await Model.create({ ...parsed, createdBy: req.userId });
+      return res.status(201).json({ [resource.slice(0, -1)]: serializeCatalogEntry(entry) });
+    } catch (error) {
+      if (error && error.code === 11000) {
+        return res.status(409).json({ error: `That ${label.slice(0, -1)} already exists.` });
+      }
+      console.error(`Admin ${label} creation failed:`, error);
+      return res.status(500).json({ error: `Unable to add this ${label.slice(0, -1)} right now.` });
+    }
+  });
+
+  router.put(`/${resource}/:id`, async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: `Choose a valid ${label.slice(0, -1)}.` });
+    const parsed = parseCatalogName(req.body);
+    if (!parsed) return res.status(400).json({ error: `${label} names must be between 1 and 100 characters.` });
+
+    try {
+      const entry = await Model.findByIdAndUpdate(
+        req.params.id,
+        { $set: parsed },
+        { new: true, runValidators: true },
+      ).select("name").lean();
+      if (!entry) return res.status(404).json({ error: `${label.slice(0, -1)} not found.` });
+      return res.json({ [resource.slice(0, -1)]: serializeCatalogEntry(entry) });
+    } catch (error) {
+      if (error && error.code === 11000) {
+        return res.status(409).json({ error: `That ${label.slice(0, -1)} already exists.` });
+      }
+      console.error(`Admin ${label} update failed:`, error);
+      return res.status(500).json({ error: `Unable to update this ${label.slice(0, -1)} right now.` });
+    }
+  });
+
+  router.delete(`/${resource}/:id`, async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: `Choose a valid ${label.slice(0, -1)}.` });
+    try {
+      const referencedByBooking = await Booking.exists({ [bookingReference]: req.params.id });
+      if (referencedByBooking) {
+        return res.status(409).json({ error: `This ${label.slice(0, -1)} is used by a booking and cannot be removed.` });
+      }
+      const entry = await Model.findByIdAndDelete(req.params.id);
+      if (!entry) return res.status(404).json({ error: `${label.slice(0, -1)} not found.` });
+      return res.json({ message: `${label.slice(0, -1)} removed.` });
+    } catch (error) {
+      console.error(`Admin ${label} deletion failed:`, error);
+      return res.status(500).json({ error: `Unable to remove this ${label.slice(0, -1)} right now.` });
+    }
+  });
 }
 
 function serializeTask(task) {
@@ -193,6 +292,79 @@ router.patch("/bookings/:id/status", async (req, res) => {
   }
 });
 
+router.get("/hotels", async (_req, res) => {
+  try {
+    const hotels = await Hotel.find().sort({ name: 1 }).limit(500).lean();
+    return res.json({ hotels: hotels.map(serializeHotel) });
+  } catch (error) {
+    console.error("Admin hotel lookup failed:", error);
+    return res.status(500).json({ error: "Unable to load hotels right now." });
+  }
+});
+
+router.post("/hotels", async (req, res) => {
+  const parsed = parseHotelPayload(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  try {
+    const hotel = await Hotel.create({ ...parsed.value, createdBy: req.userId });
+    return res.status(201).json({ hotel: serializeHotel(hotel) });
+  } catch (error) {
+    if (error && error.code === 11000) return res.status(409).json({ error: "A hotel with this name already exists." });
+    console.error("Admin hotel creation failed:", error);
+    return res.status(500).json({ error: "Unable to create this hotel right now." });
+  }
+});
+
+router.put("/hotels/:id", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Choose a valid hotel." });
+  const parsed = parseHotelPayload(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  try {
+    const currentHotel = await Hotel.findById(req.params.id).lean();
+    if (!currentHotel) return res.status(404).json({ error: "Hotel not found." });
+    if (currentHotel.name !== parsed.value.name) {
+      const [menuExists, taskExists] = await Promise.all([
+        Menu.exists({ hotelName: currentHotel.name }),
+        KitchenTask.exists({ hotelName: currentHotel.name }),
+      ]);
+      if (menuExists || taskExists) {
+        return res.status(409).json({ error: "This hotel is used by a menu or kitchen task; its name cannot be changed." });
+      }
+    }
+    const hotel = await Hotel.findByIdAndUpdate(
+      req.params.id,
+      { $set: parsed.value },
+      { new: true, runValidators: true },
+    ).lean();
+    if (!hotel) return res.status(404).json({ error: "Hotel not found." });
+    return res.json({ hotel: serializeHotel(hotel) });
+  } catch (error) {
+    if (error && error.code === 11000) return res.status(409).json({ error: "A hotel with this name already exists." });
+    console.error("Admin hotel update failed:", error);
+    return res.status(500).json({ error: "Unable to update this hotel right now." });
+  }
+});
+
+router.delete("/hotels/:id", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Choose a valid hotel." });
+  try {
+    const hotel = await Hotel.findById(req.params.id).lean();
+    if (!hotel) return res.status(404).json({ error: "Hotel not found." });
+    const [menuExists, taskExists] = await Promise.all([
+      Menu.exists({ hotelName: hotel.name }),
+      KitchenTask.exists({ hotelName: hotel.name }),
+    ]);
+    if (menuExists || taskExists) {
+      return res.status(409).json({ error: "This hotel is used by a menu or kitchen task and cannot be deleted." });
+    }
+    await Hotel.findByIdAndDelete(req.params.id);
+    return res.json({ message: "Hotel deleted." });
+  } catch (error) {
+    console.error("Admin hotel deletion failed:", error);
+    return res.status(500).json({ error: "Unable to delete this hotel right now." });
+  }
+});
+
 router.get("/menus", async (_req, res) => {
   try {
     const menus = await Menu.find().sort({ hotelName: 1, mealType: 1, name: 1 }).limit(500).lean();
@@ -208,6 +380,8 @@ router.post("/menus", async (req, res) => {
   if (parsed.error) return res.status(400).json({ error: parsed.error });
 
   try {
+    const hotel = await Hotel.exists({ name: parsed.value.hotelName });
+    if (!hotel) return res.status(400).json({ error: "Choose a hotel from Hotel management first." });
     const menu = await Menu.create({ ...parsed.value, createdBy: req.userId });
     return res.status(201).json({ menu: serializeMenu(menu) });
   } catch (error) {
@@ -224,6 +398,8 @@ router.put("/menus/:id", async (req, res) => {
   if (parsed.error) return res.status(400).json({ error: parsed.error });
 
   try {
+    const hotel = await Hotel.exists({ name: parsed.value.hotelName });
+    if (!hotel) return res.status(400).json({ error: "Choose a hotel from Hotel management first." });
     const menu = await Menu.findByIdAndUpdate(
       req.params.id,
       { $set: parsed.value },
@@ -318,5 +494,8 @@ router.post("/kitchen/tasks", async (req, res) => {
     return res.status(500).json({ error: "Unable to send this kitchen task right now." });
   }
 });
+
+registerCatalogRoutes("foods", Food, "foods", "meals.foods.foodId");
+registerCatalogRoutes("ingredients", Ingredient, "ingredients", "meals.ingredients.ingredientId");
 
 module.exports = router;

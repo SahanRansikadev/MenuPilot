@@ -4,6 +4,7 @@ const test = require("node:test");
 const mongoose = require("mongoose");
 const app = require("../src/application");
 const Booking = require("../src/models/Booking");
+const Hotel = require("../src/models/Hotel");
 const KitchenTask = require("../src/models/KitchenTask");
 const Menu = require("../src/models/Menu");
 const Session = require("../src/models/Session");
@@ -24,6 +25,7 @@ test("admins can save a recipe and dispatch its ingredients for a booking", asyn
     bookingFindById: Booking.findById,
     menuCreate: Menu.create,
     menuFindById: Menu.findById,
+    hotelExists: Hotel.exists,
     kitchenTaskCreate: KitchenTask.create,
   };
   const adminId = new mongoose.Types.ObjectId();
@@ -43,6 +45,7 @@ test("admins can save a recipe and dispatch its ingredients for a booking", asyn
     createdMenu = { ...menu, _id: menuId };
     return createdMenu;
   };
+  Hotel.exists = async () => ({ _id: new mongoose.Types.ObjectId() });
   Menu.findById = () => Promise.resolve({
     _id: menuId,
     hotelName: "Villa Serene",
@@ -62,6 +65,7 @@ test("admins can save a recipe and dispatch its ingredients for a booking", asyn
     Booking.findById = originals.bookingFindById;
     Menu.create = originals.menuCreate;
     Menu.findById = originals.menuFindById;
+    Hotel.exists = originals.hotelExists;
     KitchenTask.create = originals.kitchenTaskCreate;
   });
 
