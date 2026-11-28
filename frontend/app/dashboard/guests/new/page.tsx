@@ -74,7 +74,6 @@ const dashboardLinks = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Guests", href: "/dashboard/guests", Icon: Users },
   { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
-  { label: "Meal planner", href: "/dashboard/meal-planner", Icon: Utensils },
   { label: "Recent activity", href: "/dashboard/recent-activity", Icon: ClipboardList },
 ];
 

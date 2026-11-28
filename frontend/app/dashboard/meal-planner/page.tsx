@@ -1,5 +1,5 @@
-import DashboardSectionPage from "../section-page";
+import { redirect } from "next/navigation";
 
 export default function MealPlannerPage() {
-  return <DashboardSectionPage section="meal-planner" />;
+  redirect("/dashboard#meal-planner");
 }
