@@ -3,6 +3,7 @@ const test = require("node:test");
 const parseBookingPayload = require("../src/utils/booking-validation");
 
 const validPayload = {
+  hotelId: "64b000000000000000000004",
   date: "2026-12-05",
   guestCount: 3,
   childrenCount: 1,
@@ -13,6 +14,7 @@ const validPayload = {
       type: "Breakfast",
       time: "08:30",
       foodIds: ["64b000000000000000000001"],
+      dessertIds: ["64b000000000000000000005"],
     },
     {
       type: "Other",
@@ -32,6 +34,7 @@ test("parses a complete booking while retaining selected meal foods and times", 
 
   assert.equal(parsed.error, undefined);
   assert.deepEqual(parsed.value, {
+    hotelId: "64b000000000000000000004",
     date: "2026-12-05",
     guestCount: 3,
     childrenCount: 1,
@@ -44,6 +47,7 @@ test("parses a complete booking while retaining selected meal foods and times", 
         hasIngredients: false,
         ingredientIds: [],
         foodIds: ["64b000000000000000000001"],
+        dessertIds: ["64b000000000000000000005"],
       },
       {
         type: "Other",
@@ -52,6 +56,7 @@ test("parses a complete booking while retaining selected meal foods and times", 
         hasIngredients: false,
         ingredientIds: [],
         foodIds: ["64b000000000000000000002"],
+        dessertIds: [],
       },
     ],
     isVegetarian: true,
@@ -59,6 +64,19 @@ test("parses a complete booking while retaining selected meal foods and times", 
     allergyCount: 1,
     notes: "No peanuts, please.",
   });
+});
+
+test("keeps desserts separate from food selections", () => {
+  const parsed = parseBookingPayload({
+    ...validPayload,
+    meals: [{
+      ...validPayload.meals[0],
+      dessertIds: ["64b000000000000000000005"],
+    }],
+  });
+  assert.equal(parsed.error, undefined);
+  assert.deepEqual(parsed.value.meals[0].foodIds, ["64b000000000000000000001"]);
+  assert.deepEqual(parsed.value.meals[0].dessertIds, ["64b000000000000000000005"]);
 });
 
 test("rejects child and allergy counts greater than the number of guests", () => {

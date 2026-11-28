@@ -12,6 +12,7 @@ import {
   Building2,
   CalendarDays,
   ChefHat,
+  CheckCircle2,
   ChevronRight,
   CircleHelp,
   Eye,
@@ -29,7 +30,7 @@ import {
 import { API_BASE_URL } from "../../../lib/api";
 
 type AdminRole = "admin" | "kitchenTeam" | "guest";
-type AdminTab = "overview" | "users" | "bookings" | "menus" | "catalog" | "hotels" | "kitchen";
+type AdminTab = "overview" | "users" | "bookings" | "menus" | "catalog" | "hotels" | "kitchen" | "costing";
 type MenuMealType = "Breakfast" | "Lunch" | "Tea time" | "Dinner" | "Barbecue" | "Other";
 type BookingStatus = "pending" | "confirmed" | "preparing" | "completed" | "cancelled";
 
@@ -43,11 +44,14 @@ type AdminUser = {
   childrenCount: number;
 };
 
+type AdminUserDraft = Pick<AdminUser, "name" | "email" | "role">;
+
 type AdminBooking = {
   id: string;
   guest: { id: string; name: string; email: string };
   date: string;
   status: BookingStatus;
+  hotel: { id: string; name: string; location: string };
   guestCount: number;
   childrenCount: number;
   driverCount: number;
@@ -57,6 +61,7 @@ type AdminBooking = {
     name?: string;
     time: string;
     foods: Array<{ name: string }>;
+    desserts: Array<{ name: string }>;
     ingredients: Array<{ name: string }>;
     hasIngredients: boolean;
   }>;
@@ -96,6 +101,16 @@ type KitchenTask = {
   mealType: string;
   description: string;
   ingredients: string[];
+  supplies: Array<{ id: string; ingredientId: string; name: string; quantity: number; unit: string; received: boolean }>;
+  foods: Array<{ name: string }>;
+  desserts: Array<{ name: string }>;
+  guestIngredients: Array<{ name: string }>;
+  isVegetarian: boolean;
+  hasAllergies: boolean;
+  allergyCount: number;
+  mealIndex: number | null;
+  costingStatus: "not_submitted" | "submitted" | "confirmed" | "cancelled";
+  actualTotalPrice: number | null;
   instructions: string;
   notes: string;
   status: string;
@@ -121,6 +136,7 @@ const tabs: Array<{ id: AdminTab; label: string; Icon: typeof LayoutDashboard }>
   { id: "catalog", label: "Foods & ingredients", Icon: Apple },
   { id: "hotels", label: "Hotel management", Icon: Building2 },
   { id: "kitchen", label: "Kitchen team", Icon: ChefHat },
+  { id: "costing", label: "Costing management", Icon: Save },
 ];
 
 const blankMenuForm: MenuForm = {
@@ -161,6 +177,7 @@ export default function AdminDashboardPage() {
   const [adminName, setAdminName] = useState("Administrator");
   const [adminId, setAdminId] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [userDrafts, setUserDrafts] = useState<Record<string, AdminUserDraft>>({});
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [menus, setMenus] = useState<MenuEntry[]>([]);
   const [foods, setFoods] = useState<CatalogEntry[]>([]);
@@ -181,7 +198,16 @@ export default function AdminDashboardPage() {
   const [editingHotelId, setEditingHotelId] = useState("");
   const [hotelForm, setHotelForm] = useState(blankHotelForm);
   const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
-  const [taskForm, setTaskForm] = useState({ assignedTo: "", bookingId: "", menuId: "", notes: "" });
+  const [taskForm, setTaskForm] = useState({
+    assignedTo: "",
+    bookingId: "",
+    mealIndex: "",
+    recipeName: "",
+    instructions: "",
+    notes: "",
+  });
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [plannedSupplies, setPlannedSupplies] = useState<Array<{ id: string; name: string; quantity: string; unit: string }>>([]);
   const router = useRouter();
 
   async function loadData(showLoading = true) {
@@ -201,6 +227,10 @@ export default function AdminDashboardPage() {
       setAdminName(account.user.name);
       setAdminId(account.user.id);
       setUsers(userResult.users);
+      setUserDrafts(Object.fromEntries(userResult.users.map((user) => [
+        user.id,
+        { name: user.name, email: user.email, role: user.role },
+      ])));
       setBookings(bookingResult.bookings);
       setMenus(menuResult.menus);
       setFoods(foodResult.foods);
@@ -215,7 +245,7 @@ export default function AdminDashboardPage() {
         ...current,
         assignedTo: current.assignedTo || userResult.users.find((user) => user.role === "kitchenTeam")?.id || "",
         bookingId: current.bookingId || bookingResult.bookings[0]?.id || "",
-        menuId: current.menuId || menuResult.menus[0]?.id || "",
+        mealIndex: current.mealIndex || (bookingResult.bookings[0]?.meals.length ? "0" : ""),
       }));
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Unable to load admin data.");
@@ -228,19 +258,37 @@ export default function AdminDashboardPage() {
     void loadData();
   }, []);
 
-  async function updateUserRole(user: AdminUser, role: AdminRole) {
+  async function saveUser(user: AdminUser) {
+    const draft = userDrafts[user.id];
+    if (!draft) return;
     setBusy(true);
     setPageError("");
     setMessage("");
     try {
-      await request(`/admin/users/${user.id}/role`, {
-        method: "PATCH",
-        body: JSON.stringify({ role }),
+      await request(`/admin/users/${user.id}`, {
+        method: "PUT",
+        body: JSON.stringify(draft),
       });
-      setMessage(`${user.name}'s role has been updated.`);
+      setMessage(`${draft.name}'s account has been updated.`);
       await loadData(false);
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : "Unable to update the user role.");
+      setPageError(error instanceof Error ? error.message : "Unable to update this user.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteUser(user: AdminUser) {
+    if (!window.confirm(`Delete the account for ${user.name}?`)) return;
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      await request(`/admin/users/${user.id}`, { method: "DELETE" });
+      setMessage(`${user.name}'s account has been deleted.`);
+      await loadData(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Unable to delete this user.");
     } finally {
       setBusy(false);
     }
@@ -429,18 +477,54 @@ export default function AdminDashboardPage() {
     setPageError("");
     setMessage("");
     try {
-      await request("/admin/kitchen/tasks", {
+      await request("/admin/kitchen/meal-tasks", {
         method: "POST",
-        body: JSON.stringify(taskForm),
+        body: JSON.stringify({
+          ...taskForm,
+          mealIndex: Number(taskForm.mealIndex),
+          supplies: plannedSupplies.map((supply) => ({
+            ...(supply.id ? { ingredientId: supply.id } : {}),
+            name: supply.name,
+            quantity: Number(supply.quantity),
+            unit: supply.unit,
+          })),
+        }),
       });
-      setMessage("Recipe and ingredient list sent to the kitchen team.");
-      setTaskForm((current) => ({ ...current, notes: "" }));
+      setMessage("Meal recipe and supply list sent to the kitchen team.");
+      setTaskForm((current) => ({ ...current, recipeName: "", instructions: "", notes: "" }));
+      setPlannedSupplies([]);
+      setIngredientSearch("");
       await loadData(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Unable to send the kitchen task.");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function confirmKitchenCost(task: KitchenTask) {
+    setBusy(true);
+    setPageError("");
+    setMessage("");
+    try {
+      await request(`/admin/kitchen/tasks/${task.id}/costing`, { method: "PATCH" });
+      setMessage(`Costing confirmed for ${task.recipeName}.`);
+      await loadData(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Unable to confirm this kitchen cost.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function addPlannedSupply(entry: CatalogEntry | null, freeformName = "") {
+    const name = entry?.name || freeformName.trim().replace(/\s+/g, " ");
+    if (!name || plannedSupplies.some((supply) => supply.name.toLowerCase() === name.toLowerCase())) return;
+    setPlannedSupplies((current) => [
+      ...current,
+      { id: entry?.id || "", name, quantity: "1", unit: "kg" },
+    ]);
+    setIngredientSearch("");
   }
 
   async function signOut() {
@@ -549,19 +633,23 @@ export default function AdminDashboardPage() {
               {activeTab === "users" && (
                 <section className="admin-card">
                   <div className="admin-card-heading"><div><h2>User accounts</h2><p>Change account access between admin, kitchen team and guest.</p></div><span className="booking-total">{users.length} accounts</span></div>
-                  <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>USER</th><th>CONTACT</th><th>GUESTS</th><th>ROLE</th></tr></thead><tbody>
+                  <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>USER</th><th>CONTACT</th><th>GUESTS</th><th>ROLE</th><th>ACTIONS</th></tr></thead><tbody>
                     {users.map((user) => (
                       <tr key={user.id}>
-                        <td><b>{user.name}</b><small>{user.email}</small></td>
+                        <td>
+                          <input aria-label={`Name for ${user.name}`} value={userDrafts[user.id]?.name ?? user.name} maxLength={100} onChange={(event) => setUserDrafts((current) => ({ ...current, [user.id]: { ...current[user.id], name: event.target.value, email: current[user.id]?.email ?? user.email, role: current[user.id]?.role ?? user.role } }))} />
+                          <input aria-label={`Email for ${user.name}`} type="email" value={userDrafts[user.id]?.email ?? user.email} maxLength={254} onChange={(event) => setUserDrafts((current) => ({ ...current, [user.id]: { ...current[user.id], name: current[user.id]?.name ?? user.name, email: event.target.value, role: current[user.id]?.role ?? user.role } }))} />
+                        </td>
                         <td>{user.phone || "—"}</td>
                         <td>{user.guestCount}{user.childrenCount ? ` (${user.childrenCount} children)` : ""}</td>
-                        <td><select className="admin-role-select" aria-label={`Role for ${user.name}`} value={user.role} disabled={busy || user.id === adminId} onChange={(event) => {
+                        <td><select className="admin-role-select" aria-label={`Role for ${user.name}`} value={userDrafts[user.id]?.role ?? user.role} disabled={busy || user.id === adminId} onChange={(event) => {
                           const role = event.target.value;
-                          if (role === "admin" || role === "kitchenTeam" || role === "guest") void updateUserRole(user, role);
+                          if (role === "admin" || role === "kitchenTeam" || role === "guest") setUserDrafts((current) => ({ ...current, [user.id]: { name: current[user.id]?.name ?? user.name, email: current[user.id]?.email ?? user.email, role } }));
                         }}><option value="guest">Guest</option><option value="kitchenTeam">Kitchen team</option><option value="admin">Admin</option></select></td>
+                        <td><div className="admin-row-actions"><button type="button" className="admin-icon-button" aria-label={`Save ${user.name}`} disabled={busy} onClick={() => void saveUser(user)}><Save size={15} /></button><button type="button" className="admin-icon-button danger" aria-label={`Delete ${user.name}`} disabled={busy || user.id === adminId} onClick={() => void deleteUser(user)}><Trash2 size={15} /></button></div></td>
                       </tr>
                     ))}
-                    {!users.length && <tr><td colSpan={4}>No accounts found.</td></tr>}
+                    {!users.length && <tr><td colSpan={5}>No accounts found.</td></tr>}
                   </tbody></table></div>
                 </section>
               )}
@@ -591,6 +679,7 @@ export default function AdminDashboardPage() {
                         <div className="dashboard-eyebrow"><i /> BOOKING DETAILS</div>
                         <h2 id="admin-booking-title">{selectedBooking.guest.name}</h2>
                         <p className="admin-modal-subtitle">{selectedBooking.guest.email} · {formatDate(selectedBooking.date)}</p>
+                        <p className="admin-modal-subtitle">{selectedBooking.hotel.name} · {selectedBooking.hotel.location}</p>
                         <div className="admin-booking-facts">
                           <span><b>Guests</b>{selectedBooking.guestCount} ({selectedBooking.childrenCount} children)</span>
                           <span><b>Drivers</b>{selectedBooking.driverCount}</span>
@@ -607,6 +696,7 @@ export default function AdminDashboardPage() {
                             <article key={`${meal.type}-${meal.time}-${index}`}>
                               <b>{meal.name || meal.type} · {meal.time}</b>
                               <span>Foods: {meal.foods.map((food) => food.name).join(", ") || "None"}</span>
+                              {meal.desserts.length > 0 && <span>Desserts: {meal.desserts.map((food) => food.name).join(", ")}</span>}
                               {meal.hasIngredients && <span>Guest bringing: {meal.ingredients.map((ingredient) => ingredient.name).join(", ") || "Not specified"}</span>}
                             </article>
                           ))}
@@ -702,30 +792,113 @@ export default function AdminDashboardPage() {
               )}
 
               {activeTab === "kitchen" && (
-                <div className="admin-kitchen-layout">
+                <div className="admin-kitchen-workspace">
+                  <section className="admin-card admin-booking-meal-queue">
+                    <div className="admin-card-heading"><div><h2>Bookings and selected meals</h2><p>Review every booking and plan kitchen supplies one meal at a time.</p></div><span className="booking-total">{bookings.length} bookings</span></div>
+                    <div className="admin-booking-meal-list">
+                      {bookings.map((booking) => (
+                        <article className="admin-booking-meal-booking" key={booking.id}>
+                          <div className="admin-booking-meal-heading">
+                            <div><b>{booking.guest.name}</b><small>{booking.hotel.name} · {booking.hotel.location} · {formatDate(booking.date)} · {booking.guestCount} guests</small></div>
+                            <span className={`admin-status ${booking.status}`}>{booking.status}</span>
+                          </div>
+                          {booking.meals.map((meal, index) => {
+                            const existingTask = tasks.find((task) => task.booking.id === booking.id && task.mealIndex === index && task.status !== "cancelled");
+                            return <div className="admin-booking-meal-item" key={`${meal.type}-${meal.time}-${index}`}>
+                              <div><b>{meal.name || meal.type} · {meal.time}</b><small>Foods: {meal.foods.map((food) => food.name).join(", ") || "None"}</small><small>Desserts: {meal.desserts.map((food) => food.name).join(", ") || "None"}</small><small>Guest brings: {meal.ingredients.map((item) => item.name).join(", ") || "None"}</small><small>{booking.isVegetarian ? "Vegetarian preference" : "No vegetarian preference"} · {booking.hasAllergies ? `${booking.allergyCount} guest(s) with allergies` : "No reported allergies"}</small></div>
+                              {existingTask
+                                ? <span className={`admin-status ${existingTask.status}`}>Kitchen: {existingTask.status}</span>
+                                : <button type="button" className="admin-secondary-button" disabled={booking.status === "cancelled"} onClick={() => {
+                                  setTaskForm((form) => ({ ...form, bookingId: booking.id, mealIndex: String(index) }));
+                                  setPlannedSupplies([]);
+                                  setIngredientSearch("");
+                                }}>Plan supplies</button>}
+                            </div>;
+                          })}
+                          {!booking.meals.length && <small className="admin-form-hint">No meals were selected for this booking.</small>}
+                        </article>
+                      ))}
+                      {!bookings.length && <div className="admin-empty-state">No bookings are available for kitchen planning.</div>}
+                    </div>
+                  </section>
+                  <div className="admin-kitchen-layout">
                   <form className="admin-card admin-task-form" onSubmit={dispatchKitchenTask}>
-                    <div className="admin-card-heading"><div><h2>Send work to kitchen</h2><p>Assign a recipe and its ingredient list to a booking.</p></div></div>
+                    <div className="admin-card-heading"><div><h2>Plan a booking meal</h2><p>Review guest selections, add required supplies, and send the meal to kitchen.</p></div></div>
                     <label>Kitchen team member<select required value={taskForm.assignedTo} onChange={(event) => setTaskForm((form) => ({ ...form, assignedTo: event.target.value }))}><option value="">Select a kitchen team member</option>{kitchenUsers.map((user) => <option value={user.id} key={user.id}>{user.name} · {user.email}</option>)}</select></label>
-                    <label>Booking<select required value={taskForm.bookingId} onChange={(event) => setTaskForm((form) => ({ ...form, bookingId: event.target.value }))}><option value="">Select a booking</option>{bookings.filter((booking) => booking.status !== "cancelled").map((booking) => <option value={booking.id} key={booking.id}>{booking.guest.name} · {formatDate(booking.date)} · {booking.guestCount} guests</option>)}</select></label>
-                    <label>Menu / recipe<select required value={taskForm.menuId} onChange={(event) => setTaskForm((form) => ({ ...form, menuId: event.target.value }))}><option value="">Select a recipe</option>{menus.map((menu) => <option value={menu.id} key={menu.id}>{menu.name} · {menu.hotelName}</option>)}</select></label>
-                    {menus.find((menu) => menu.id === taskForm.menuId) && <div className="admin-ingredient-preview"><b>Ingredient supply list</b><span>{menus.find((menu) => menu.id === taskForm.menuId)?.ingredients.join(" · ")}</span></div>}
+                    <label>Booking<select required value={taskForm.bookingId} onChange={(event) => setTaskForm((form) => ({ ...form, bookingId: event.target.value, mealIndex: "" }))}><option value="">Select a booking</option>{bookings.filter((booking) => booking.status !== "cancelled").map((booking) => <option value={booking.id} key={booking.id}>{booking.guest.name} · {formatDate(booking.date)} · {booking.hotel.name}</option>)}</select></label>
+                    <label>Meal<select required value={taskForm.mealIndex} onChange={(event) => setTaskForm((form) => ({ ...form, mealIndex: event.target.value }))}><option value="">Select a booking meal</option>{(bookings.find((booking) => booking.id === taskForm.bookingId)?.meals || []).map((meal, index) => <option value={String(index)} key={`${meal.type}-${meal.time}-${index}`}>{meal.name || meal.type} · {meal.time}</option>)}</select></label>
+                    {(() => {
+                      const booking = bookings.find((item) => item.id === taskForm.bookingId);
+                      const meal = booking?.meals[Number(taskForm.mealIndex)];
+                      if (!booking || !meal) return null;
+                      return <div className="admin-ingredient-preview">
+                        <b>{booking.hotel.name} · {booking.guestCount} guests</b>
+                        <span>Foods: {meal.foods.map((food) => food.name).join(", ") || "None"}</span>
+                        <span>Desserts: {meal.desserts.map((food) => food.name).join(", ") || "None"}</span>
+                        <span>Guest bringing: {meal.ingredients.map((ingredient) => ingredient.name).join(", ") || "None"}</span>
+                        <span>{booking.isVegetarian ? "Vegetarian preference" : "No vegetarian preference"} · {booking.hasAllergies ? `${booking.allergyCount} guest(s) with allergies` : "No reported allergies"}</span>
+                        {booking.notes && <span>Guest notes: {booking.notes}</span>}
+                      </div>;
+                    })()}
+                    <label>Recipe name<input required maxLength={100} value={taskForm.recipeName} onChange={(event) => setTaskForm((form) => ({ ...form, recipeName: event.target.value }))} placeholder="e.g. Coconut chicken curry" /></label>
+                    <label>Recipe instructions<textarea rows={4} maxLength={5000} value={taskForm.instructions} onChange={(event) => setTaskForm((form) => ({ ...form, instructions: event.target.value }))} placeholder="Preparation steps for the kitchen team..." /></label>
+                    <label>Search ingredients<input value={ingredientSearch} onChange={(event) => setIngredientSearch(event.target.value)} placeholder="Find or add an ingredient..." /></label>
+                    {ingredientSearch.trim() && <div className="admin-ingredient-search-results">
+                      {ingredients.filter((entry) => entry.name.toLowerCase().includes(ingredientSearch.trim().toLowerCase())).map((entry) => (
+                        <button type="button" key={entry.id} onClick={() => addPlannedSupply(entry)} disabled={plannedSupplies.some((item) => item.id === entry.id)}>{entry.name}{plannedSupplies.some((item) => item.id === entry.id) ? " · added" : " · add"}</button>
+                      ))}
+                      {!ingredients.some((entry) => entry.name.toLowerCase() === ingredientSearch.trim().toLowerCase()) && <button type="button" onClick={() => addPlannedSupply(null, ingredientSearch)}>Add “{ingredientSearch.trim()}” to ingredient catalog and plan</button>}
+                    </div>}
+                    <div className="admin-planned-supplies">
+                      <b>Kitchen supply quantities</b>
+                      {!plannedSupplies.length && <small>Add the ingredients the kitchen team must bring. Guest-provided items are checked by the server and cannot be requested twice.</small>}
+                      {plannedSupplies.map((supply, index) => (
+                        <div className="admin-planned-supply-row" key={`${supply.id}-${supply.name}`}>
+                          <span>{supply.name}</span>
+                          <input aria-label={`${supply.name} quantity`} type="number" min="0.001" step="any" required value={supply.quantity} onChange={(event) => setPlannedSupplies((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: event.target.value } : item))} />
+                          <input aria-label={`${supply.name} unit`} maxLength={20} required value={supply.unit} onChange={(event) => setPlannedSupplies((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, unit: event.target.value } : item))} />
+                          <button type="button" className="admin-icon-button danger" aria-label={`Remove ${supply.name}`} onClick={() => setPlannedSupplies((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
                     <label>Kitchen notes <small>Optional</small><textarea rows={3} maxLength={1000} value={taskForm.notes} onChange={(event) => setTaskForm((form) => ({ ...form, notes: event.target.value }))} placeholder="Add timing, preparation or delivery notes..." /></label>
-                    <button className="admin-primary-button" disabled={busy || !kitchenUsers.length || !bookings.length || !menus.length}><Send size={15} />{busy ? "Sending..." : "Send recipe to kitchen"}</button>
+                    <button className="admin-primary-button" disabled={busy || !kitchenUsers.length || !taskForm.bookingId || !taskForm.mealIndex}><Send size={15} />{busy ? "Sending..." : "Send meal and supplies"}</button>
                     {!kitchenUsers.length && <small className="admin-form-hint">Add a user with the Kitchen team role before assigning work.</small>}
                   </form>
                   <section className="admin-task-list">
-                    <div className="admin-card-heading"><div><h2>Kitchen task history</h2><p>Recipe and supply tasks sent to your team.</p></div></div>
+                    <div className="admin-card-heading"><div><h2>Kitchen task history</h2><p>Per-meal recipes and ingredient supply plans sent to your team.</p></div></div>
                     {tasks.map((task) => (
                       <article className="admin-task-card" key={task.id}>
                         <div className="admin-task-heading"><div><span className={`admin-status ${task.status}`}>{task.status}</span><h3>{task.recipeName}</h3><small>{task.hotelName} · {task.mealType}</small></div><ChefHat size={19} /></div>
                         <div className="admin-task-meta"><span><b>Assigned to</b>{task.assignedTo.name}</span><span><b>Booking</b>{formatDate(task.booking.date)} · {task.booking.guestCount} guests</span></div>
-                        <p><b>Supplies:</b> {task.ingredients.join(", ")}</p>
+                        <p><b>Supplies:</b> {task.supplies.length ? task.supplies.map((item) => `${item.name} ${item.quantity} ${item.unit}`).join(", ") : task.ingredients.join(", ") || "None"}</p>
+                        {task.foods.length > 0 && <p><b>Foods:</b> {task.foods.map((food) => food.name).join(", ")}</p>}
+                        {task.desserts.length > 0 && <p><b>Desserts:</b> {task.desserts.map((food) => food.name).join(", ")}</p>}
+                        {task.guestIngredients.length > 0 && <p><b>Guest brings:</b> {task.guestIngredients.map((item) => item.name).join(", ")}</p>}
                         {task.notes && <small className="admin-task-note">{task.notes}</small>}
                       </article>
                     ))}
                     {!tasks.length && <div className="admin-empty-state">No kitchen tasks yet. Send a recipe to start coordination.</div>}
                   </section>
+                  </div>
                 </div>
+              )}
+              {activeTab === "costing" && (
+                <section className="admin-card">
+                  <div className="admin-card-heading"><div><h2>Kitchen costing</h2><p>Review the actual supplier total submitted by the kitchen team and confirm it.</p></div></div>
+                  <div className="admin-task-list">
+                    {tasks.filter((task) => task.costingStatus === "submitted" || task.costingStatus === "confirmed").map((task) => (
+                      <article className="admin-task-card" key={task.id}>
+                        <div className="admin-task-heading"><div><span className={`admin-status ${task.costingStatus}`}>{task.costingStatus}</span><h3>{task.recipeName}</h3><small>{task.hotelName} · {task.mealType}</small></div><ChefHat size={19} /></div>
+                        <div className="admin-task-meta"><span><b>Kitchen member</b>{task.assignedTo.name}</span><span><b>Booking</b>{formatDate(task.booking.date)} · {task.booking.guestCount} guests</span><span><b>Actual total</b>{task.actualTotalPrice ?? "—"}</span></div>
+                        <p><b>Received:</b> {task.supplies.filter((item) => item.received).map((item) => item.name).join(", ") || "None"}</p>
+                        <p><b>Missing:</b> {task.supplies.filter((item) => !item.received).map((item) => item.name).join(", ") || "None"}</p>
+                        {task.costingStatus === "submitted" && <button type="button" className="admin-primary-button" disabled={busy} onClick={() => void confirmKitchenCost(task)}><CheckCircle2 size={15} />Confirm actual cost</button>}
+                      </article>
+                    ))}
+                    {!tasks.some((task) => task.costingStatus === "submitted" || task.costingStatus === "confirmed") && <div className="admin-empty-state">No kitchen costs have been submitted yet.</div>}
+                  </div>
+                </section>
               )}
             </>
           )}

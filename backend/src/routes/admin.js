@@ -6,6 +6,7 @@ const Hotel = require("../models/Hotel");
 const Ingredient = require("../models/Ingredient");
 const KitchenTask = require("../models/KitchenTask");
 const Menu = require("../models/Menu");
+const Session = require("../models/Session");
 const User = require("../models/User");
 const requireAuth = require("../middleware/require-auth");
 const requireRole = require("../middleware/require-role");
@@ -64,13 +65,23 @@ function serializeCatalogEntry(entry) {
 
 function serializeBooking(booking) {
   const guest = booking.userId && booking.userId.name ? booking.userId : null;
+  const hotel = booking.hotelId && booking.hotelId.name ? booking.hotelId : null;
   return {
     id: booking._id.toString(),
     guest: guest
       ? { id: guest._id.toString(), name: guest.name, email: guest.email }
-      : { id: booking.userId.toString(), name: "Guest", email: "" },
+      : {
+          id: booking.userId.toString(),
+          name: booking.guestName || "Guest",
+          email: booking.guestEmail || "",
+        },
     date: new Date(booking.date).toISOString().slice(0, 10),
     status: booking.status || "pending",
+    hotel: {
+      id: hotel ? hotel._id.toString() : booking.hotelId ? booking.hotelId.toString() : "",
+      name: hotel ? hotel.name : booking.hotelName || "—",
+      location: hotel ? hotel.location : booking.hotelLocation || "",
+    },
     guestCount: booking.guestCount,
     childrenCount: booking.childrenCount,
     driverCount: booking.driverCount,
@@ -80,6 +91,7 @@ function serializeBooking(booking) {
       ...(meal.name ? { name: meal.name } : {}),
       time: meal.time,
       foods: (meal.foods || []).map((food) => ({ id: food.foodId.toString(), name: food.name })),
+      desserts: (meal.desserts || []).map((food) => ({ id: food.foodId.toString(), name: food.name })),
       ingredients: (meal.ingredients || []).map((ingredient) => ({
         id: ingredient.ingredientId.toString(),
         name: ingredient.name,
@@ -91,6 +103,10 @@ function serializeBooking(booking) {
     allergyCount: booking.allergyCount || 0,
     notes: booking.notes || "",
   };
+}
+
+function normalizeIngredientName(name) {
+  return name.trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
 }
 
 function escapeRegex(value) {
@@ -157,7 +173,10 @@ function registerCatalogRoutes(resource, Model, label, bookingReference) {
   router.delete(`/${resource}/:id`, async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: `Choose a valid ${label.slice(0, -1)}.` });
     try {
-      const referencedByBooking = await Booking.exists({ [bookingReference]: req.params.id });
+      const bookingReferenceQuery = Array.isArray(bookingReference)
+        ? { $or: bookingReference.map((path) => ({ [path]: req.params.id })) }
+        : { [bookingReference]: req.params.id };
+      const referencedByBooking = await Booking.exists(bookingReferenceQuery);
       if (referencedByBooking) {
         return res.status(409).json({ error: `This ${label.slice(0, -1)} is used by a booking and cannot be removed.` });
       }
@@ -184,6 +203,7 @@ function serializeTask(task) {
           id: booking._id.toString(),
           date: new Date(booking.date).toISOString().slice(0, 10),
           guestCount: booking.guestCount,
+          hotelName: booking.hotelName || "",
         }
       : { id: task.bookingId.toString(), date: "", guestCount: 0 },
     hotelName: task.hotelName,
@@ -191,6 +211,23 @@ function serializeTask(task) {
     mealType: task.mealType,
     description: task.description || "",
     ingredients: task.ingredients || [],
+    supplies: (task.supplies || []).map((supply) => ({
+      id: supply._id.toString(),
+      ingredientId: supply.ingredientId ? supply.ingredientId.toString() : "",
+      name: supply.name,
+      quantity: supply.quantity,
+      unit: supply.unit,
+      received: Boolean(supply.received),
+    })),
+    foods: task.foods || [],
+    desserts: task.desserts || [],
+    guestIngredients: task.guestIngredients || [],
+    isVegetarian: Boolean(task.isVegetarian),
+    hasAllergies: Boolean(task.hasAllergies),
+    allergyCount: task.allergyCount || 0,
+    mealIndex: task.mealIndex,
+    costingStatus: task.costingStatus || "not_submitted",
+    actualTotalPrice: task.actualTotalPrice,
     instructions: task.instructions,
     notes: task.notes || "",
     status: task.status,
@@ -258,10 +295,95 @@ router.patch("/users/:id/role", async (req, res) => {
   }
 });
 
+router.put("/users/:id", async (req, res) => {
+  const { name, email, role } = req.body || {};
+  const cleanName = typeof name === "string" ? name.trim().replace(/\s+/g, " ") : "";
+  const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+  if (
+    !mongoose.isValidObjectId(req.params.id) ||
+    !cleanName ||
+    cleanName.length > 100 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) ||
+    cleanEmail.length > 254 ||
+    !userRoles.includes(role)
+  ) {
+    return res.status(400).json({ error: "Enter a valid name, email, and account role." });
+  }
+
+  try {
+    const existingUser = await User.findById(req.params.id).select("name email role");
+    if (!existingUser) return res.status(404).json({ error: "User not found." });
+    if (existingUser._id.toString() === req.userId.toString() && existingUser.role !== role) {
+      return res.status(400).json({ error: "You cannot change your own role." });
+    }
+    const emailOwner = await User.exists({ email: cleanEmail, _id: { $ne: existingUser._id } });
+    if (emailOwner) return res.status(409).json({ error: "That email address is already in use." });
+    if (existingUser.role === "admin" && role !== "admin") {
+      const adminCount = await User.countDocuments({ role: "admin" });
+      if (adminCount <= 1) return res.status(409).json({ error: "The last administrator cannot be demoted." });
+    }
+    if (existingUser.role === "kitchenTeam" && role !== "kitchenTeam") {
+      const activeTask = await KitchenTask.exists({
+        assignedTo: existingUser._id,
+        status: { $in: ["sent", "accepted", "preparing"] },
+      });
+      if (activeTask) {
+        return res.status(409).json({ error: "Complete or decline this kitchen member's active tasks before changing their role." });
+      }
+    }
+
+    existingUser.name = cleanName;
+    existingUser.email = cleanEmail;
+    existingUser.role = role;
+    await existingUser.save();
+    return res.json({ user: serializeUser(existingUser) });
+  } catch (error) {
+    if (error && error.code === 11000) return res.status(409).json({ error: "That email address is already in use." });
+    console.error("Admin user update failed:", error);
+    return res.status(500).json({ error: "Unable to update this user right now." });
+  }
+});
+
+router.delete("/users/:id", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ error: "Choose a valid user." });
+  }
+  if (req.params.id === req.userId.toString()) {
+    return res.status(400).json({ error: "You cannot delete your own account." });
+  }
+  try {
+    const user = await User.findById(req.params.id).select("_id name email role");
+    if (!user) return res.status(404).json({ error: "User not found." });
+    if (user.role === "admin" && await User.countDocuments({ role: "admin" }) <= 1) {
+      return res.status(409).json({ error: "The last administrator cannot be deleted." });
+    }
+    if (user.role === "kitchenTeam") {
+      const activeTask = await KitchenTask.exists({
+        assignedTo: user._id,
+        status: { $in: ["sent", "accepted", "preparing"] },
+      });
+      if (activeTask) {
+        return res.status(409).json({ error: "Complete or decline this kitchen member's active tasks before deleting the account." });
+      }
+    }
+    await Booking.updateMany(
+      { userId: user._id },
+      { $set: { guestName: user.name, guestEmail: user.email } },
+    );
+    await User.deleteOne({ _id: user._id });
+    await Session.deleteMany({ userId: user._id });
+    return res.json({ message: "User account deleted." });
+  } catch (error) {
+    console.error("Admin user deletion failed:", error);
+    return res.status(500).json({ error: "Unable to delete this user right now." });
+  }
+});
+
 router.get("/bookings", async (_req, res) => {
   try {
     const bookings = await Booking.find()
       .populate({ path: "userId", select: "name email" })
+      .populate({ path: "hotelId", select: "name location" })
       .sort({ date: 1, createdAt: -1 })
       .limit(500)
       .lean();
@@ -285,6 +407,12 @@ router.patch("/bookings/:id/status", async (req, res) => {
       { new: true, runValidators: true },
     );
     if (!booking) return res.status(404).json({ error: "Booking not found." });
+    if (status === "cancelled") {
+      await KitchenTask.updateMany(
+        { bookingId: booking._id, status: { $in: ["sent", "accepted", "preparing"] } },
+        { $set: { status: "cancelled", costingStatus: "cancelled" } },
+      );
+    }
     return res.json({ booking: { id: booking._id.toString(), status: booking.status } });
   } catch (error) {
     console.error("Admin booking update failed:", error);
@@ -327,8 +455,9 @@ router.put("/hotels/:id", async (req, res) => {
         Menu.exists({ hotelName: currentHotel.name }),
         KitchenTask.exists({ hotelName: currentHotel.name }),
       ]);
-      if (menuExists || taskExists) {
-        return res.status(409).json({ error: "This hotel is used by a menu or kitchen task; its name cannot be changed." });
+      const bookingExists = await Booking.exists({ hotelId: currentHotel._id });
+      if (menuExists || taskExists || bookingExists) {
+        return res.status(409).json({ error: "This hotel is used by a menu, booking, or kitchen task; its name cannot be changed." });
       }
     }
     const hotel = await Hotel.findByIdAndUpdate(
@@ -350,12 +479,13 @@ router.delete("/hotels/:id", async (req, res) => {
   try {
     const hotel = await Hotel.findById(req.params.id).lean();
     if (!hotel) return res.status(404).json({ error: "Hotel not found." });
-    const [menuExists, taskExists] = await Promise.all([
+    const [menuExists, taskExists, bookingExists] = await Promise.all([
       Menu.exists({ hotelName: hotel.name }),
       KitchenTask.exists({ hotelName: hotel.name }),
+      Booking.exists({ hotelId: hotel._id }),
     ]);
-    if (menuExists || taskExists) {
-      return res.status(409).json({ error: "This hotel is used by a menu or kitchen task and cannot be deleted." });
+    if (menuExists || taskExists || bookingExists) {
+      return res.status(409).json({ error: "This hotel is used by a menu, booking, or kitchen task and cannot be deleted." });
     }
     await Hotel.findByIdAndDelete(req.params.id);
     return res.json({ message: "Hotel deleted." });
@@ -437,7 +567,7 @@ router.get("/kitchen/tasks", async (_req, res) => {
   try {
     const tasks = await KitchenTask.find()
       .populate({ path: "assignedTo", select: "name email" })
-      .populate({ path: "bookingId", select: "date guestCount" })
+      .populate({ path: "bookingId", select: "date guestCount hotelName" })
       .sort({ createdAt: -1 })
       .limit(500)
       .lean();
@@ -445,6 +575,40 @@ router.get("/kitchen/tasks", async (_req, res) => {
   } catch (error) {
     console.error("Admin kitchen task lookup failed:", error);
     return res.status(500).json({ error: "Unable to load kitchen tasks right now." });
+  }
+});
+
+router.get("/kitchen/costing", async (_req, res) => {
+  try {
+    const tasks = await KitchenTask.find({ costingStatus: { $in: ["submitted", "confirmed"] } })
+      .populate({ path: "assignedTo", select: "name email" })
+      .populate({ path: "bookingId", select: "date guestCount hotelName" })
+      .sort({ updatedAt: -1 })
+      .limit(500)
+      .lean();
+    return res.json({ tasks: tasks.map(serializeTask) });
+  } catch (error) {
+    console.error("Admin costing lookup failed:", error);
+    return res.status(500).json({ error: "Unable to load kitchen costing right now." });
+  }
+});
+
+router.patch("/kitchen/tasks/:id/costing", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ error: "Choose a valid kitchen task." });
+  }
+  try {
+    const task = await KitchenTask.findById(req.params.id);
+    if (!task) return res.status(404).json({ error: "Kitchen task not found." });
+    if (task.costingStatus !== "submitted") {
+      return res.status(409).json({ error: "Only submitted kitchen costs can be confirmed." });
+    }
+    task.costingStatus = "confirmed";
+    await task.save();
+    return res.json({ task: { id: task._id.toString(), costingStatus: task.costingStatus } });
+  } catch (error) {
+    console.error("Admin costing confirmation failed:", error);
+    return res.status(500).json({ error: "Unable to confirm this kitchen cost right now." });
   }
 });
 
@@ -495,7 +659,138 @@ router.post("/kitchen/tasks", async (req, res) => {
   }
 });
 
-registerCatalogRoutes("foods", Food, "foods", "meals.foods.foodId");
+router.post("/kitchen/meal-tasks", async (req, res) => {
+  const { assignedTo, bookingId, mealIndex, recipeName, instructions = "", notes = "", supplies } = req.body || {};
+  const cleanRecipeName = typeof recipeName === "string" ? recipeName.trim() : "";
+  if (
+    !mongoose.isValidObjectId(assignedTo) ||
+    !mongoose.isValidObjectId(bookingId) ||
+    !Number.isInteger(mealIndex) ||
+    mealIndex < 0 ||
+    !cleanRecipeName ||
+    cleanRecipeName.length > 100 ||
+    typeof instructions !== "string" ||
+    instructions.trim().length > 5000 ||
+    typeof notes !== "string" ||
+    notes.trim().length > 1000 ||
+    !Array.isArray(supplies) ||
+    supplies.length > 100
+  ) {
+    return res.status(400).json({ error: "Provide a kitchen team member, booking meal, recipe name, notes, and valid supply list." });
+  }
+
+  const cleanSupplies = [];
+  for (const supply of supplies) {
+    if (
+      !supply ||
+      typeof supply !== "object" ||
+      typeof supply.name !== "string" ||
+      !supply.name.trim() ||
+      supply.name.trim().length > 100 ||
+      !Number.isFinite(supply.quantity) ||
+      supply.quantity <= 0 ||
+      supply.quantity > 1000000 ||
+      typeof supply.unit !== "string" ||
+      !supply.unit.trim() ||
+      supply.unit.trim().length > 20 ||
+      (supply.ingredientId && !mongoose.isValidObjectId(supply.ingredientId))
+    ) {
+      return res.status(400).json({ error: "Each supply needs a valid ingredient name, quantity, and unit." });
+    }
+    cleanSupplies.push({
+      ingredientId: supply.ingredientId || "",
+      name: supply.name.trim().replace(/\s+/g, " "),
+      quantity: supply.quantity,
+      unit: supply.unit.trim(),
+    });
+  }
+  if (new Set(cleanSupplies.map((supply) => normalizeIngredientName(supply.name))).size !== cleanSupplies.length) {
+    return res.status(400).json({ error: "Remove duplicate ingredients from the supply list." });
+  }
+
+  try {
+    const [teamMember, booking] = await Promise.all([
+      User.findById(assignedTo).select("_id role"),
+      Booking.findById(bookingId),
+    ]);
+    if (!teamMember || teamMember.role !== "kitchenTeam") {
+      return res.status(400).json({ error: "Choose an active kitchen team account." });
+    }
+    if (!booking) return res.status(404).json({ error: "Booking not found." });
+    if (booking.status === "cancelled") {
+      return res.status(409).json({ error: "A kitchen task cannot be created for a cancelled booking." });
+    }
+    const meal = booking.meals[mealIndex];
+    if (!meal) return res.status(400).json({ error: "Choose a meal from this booking." });
+    const duplicateTask = await KitchenTask.exists({
+      bookingId: booking._id,
+      mealIndex,
+      status: { $ne: "cancelled" },
+    });
+    if (duplicateTask) return res.status(409).json({ error: "A kitchen task already exists for this booking meal." });
+
+    const guestIngredientNames = new Set(
+      (meal.ingredients || []).map((ingredient) => normalizeIngredientName(ingredient.name)),
+    );
+    if (cleanSupplies.some((supply) => guestIngredientNames.has(normalizeIngredientName(supply.name)))) {
+      return res.status(400).json({ error: "Ingredients the guest is bringing must not be added to kitchen supplies." });
+    }
+
+    const resolvedSupplies = [];
+    for (const supply of cleanSupplies) {
+      let ingredient;
+      if (supply.ingredientId) {
+        ingredient = await Ingredient.findById(supply.ingredientId).select("name");
+        if (!ingredient) return res.status(400).json({ error: `Ingredient "${supply.name}" is no longer available.` });
+      } else {
+        const name = supply.name;
+        const normalizedName = normalizeIngredientName(name);
+        ingredient = await Ingredient.findOneAndUpdate(
+          { normalizedName },
+          { $setOnInsert: { name, normalizedName, createdBy: req.userId } },
+          { new: true, upsert: true, setDefaultsOnInsert: true },
+        ).select("_id name");
+      }
+      if (guestIngredientNames.has(normalizeIngredientName(ingredient.name))) {
+        return res.status(400).json({ error: `Guest-provided ingredient "${ingredient.name}" cannot be requested from the kitchen.` });
+      }
+      resolvedSupplies.push({
+        ingredientId: ingredient._id,
+        name: ingredient.name,
+        quantity: supply.quantity,
+        unit: supply.unit,
+        received: false,
+      });
+    }
+
+    const task = await KitchenTask.create({
+      assignedTo,
+      bookingId,
+      mealIndex,
+      hotelName: booking.hotelName || "Hotel branch not selected",
+      recipeName: cleanRecipeName,
+      mealType: meal.name || meal.type,
+      description: "",
+      ingredients: resolvedSupplies.map((supply) => `${supply.name} - ${supply.quantity} ${supply.unit}`),
+      supplies: resolvedSupplies,
+      foods: (meal.foods || []).map((food) => ({ name: food.name })),
+      desserts: (meal.desserts || []).map((food) => ({ name: food.name })),
+      guestIngredients: (meal.ingredients || []).map((ingredient) => ({ name: ingredient.name })),
+      isVegetarian: booking.isVegetarian,
+      hasAllergies: booking.hasAllergies,
+      allergyCount: booking.allergyCount || 0,
+      instructions: instructions.trim(),
+      notes: notes.trim(),
+      createdBy: req.userId,
+    });
+    return res.status(201).json({ task: serializeTask(task) });
+  } catch (error) {
+    console.error("Booking meal dispatch failed:", error);
+    return res.status(500).json({ error: "Unable to send this meal to the kitchen right now." });
+  }
+});
+
+registerCatalogRoutes("foods", Food, "foods", ["meals.foods.foodId", "meals.desserts.foodId"]);
 registerCatalogRoutes("ingredients", Ingredient, "ingredients", "meals.ingredients.ingredientId");
 
 module.exports = router;

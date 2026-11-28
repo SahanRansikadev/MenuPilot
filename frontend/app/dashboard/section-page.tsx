@@ -44,11 +44,13 @@ type SavedBooking = {
   childrenCount: number;
   driverCount: number;
   guideCount: number;
+  hotel: { id: string; name: string; location: string };
   meals: Array<{
     type: string;
     name?: string;
     time: string;
     foods: Array<{ id: string; name: string }>;
+    desserts: Array<{ id: string; name: string }>;
     hasIngredients?: boolean;
     ingredients?: Array<{ id: string; name: string }>;
   }>;
@@ -73,9 +75,33 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
   const [bookings, setBookings] = useState<SavedBooking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(section === "bookings");
   const [bookingError, setBookingError] = useState("");
+  const [deletingBookingId, setDeletingBookingId] = useState("");
   const pathname = usePathname();
   const router = useRouter();
   const page = pageDetails[section];
+
+  async function deleteBooking(booking: SavedBooking) {
+    if (!window.confirm(`Delete the booking for ${formatBookingDate(booking.date)} at ${booking.hotel.name}?`)) return;
+    setDeletingBookingId(booking.id);
+    setBookingError("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/bookings/${encodeURIComponent(booking.id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const result: { error?: string } = await response.json();
+      if (response.status === 401) {
+        router.replace("/");
+        return;
+      }
+      if (!response.ok) throw new Error(result.error || "Unable to delete this booking.");
+      setBookings((current) => current.filter((item) => item.id !== booking.id));
+    } catch (error) {
+      setBookingError(error instanceof Error ? error.message : "Unable to delete this booking.");
+    } finally {
+      setDeletingBookingId("");
+    }
+  }
 
   useEffect(() => {
     if (section !== "bookings") return;
@@ -187,12 +213,14 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
                     <span className="recent-booking-icon blue"><CalendarDays size={19} /></span>
                     <div className="section-booking-copy">
                       <h3>{formatBookingDate(booking.date)}</h3>
+                      <p>{booking.hotel.name} · {booking.hotel.location}</p>
                       <p>{booking.guestCount} guests · {booking.childrenCount} children</p>
                       <div className="section-booking-meals">
                         {booking.meals.map((meal) => (
                           <div key={`${meal.type}-${meal.time}`}>
                             <span><Utensils size={13} /> {meal.name || meal.type} · {meal.time}</span>
                             <small>{meal.foods.map((food) => food.name).join(", ")}</small>
+                            {meal.desserts.length > 0 && <small>Dessert: {meal.desserts.map((food) => food.name).join(", ")}</small>}
                             {meal.hasIngredients && meal.ingredients && meal.ingredients.length > 0 && (
                               <small className="section-booking-ingredients">
                                 Bringing: {meal.ingredients.map((ingredient) => ingredient.name).join(", ")}
@@ -206,6 +234,19 @@ export default function DashboardSectionPage({ section }: { section: DashboardSe
                       {booking.notes && <p className="section-booking-notes">{booking.notes}</p>}
                     </div>
                     <span className={`admin-status ${booking.status || "pending"}`}>{booking.status || "pending"}</span>
+                    <div className="section-booking-actions">
+                      <Link className="planner-back-button" href={`/dashboard?editBooking=${encodeURIComponent(booking.id)}`}>
+                        Edit
+                      </Link>
+                      <button
+                        type="button"
+                        className="planner-secondary-button"
+                        disabled={deletingBookingId === booking.id}
+                        onClick={() => void deleteBooking(booking)}
+                      >
+                        {deletingBookingId === booking.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

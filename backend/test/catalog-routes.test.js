@@ -8,7 +8,7 @@ const Food = require("../src/models/Food");
 const Session = require("../src/models/Session");
 const User = require("../src/models/User");
 
-test("admins can add catalog foods while booking-referenced foods cannot be removed", async (t) => {
+test("admins can add catalog foods while booking-referenced foods and desserts cannot be removed", async (t) => {
   const originalSessionFindOne = Session.findOne;
   const originalUserFindById = User.findById;
   const originalFoodFind = Food.find;
@@ -79,5 +79,10 @@ test("admins can add catalog foods while booking-referenced foods cannot be remo
 
   const deleteResponse = await fetch(`${baseUrl}/${foodId}`, { method: "DELETE", headers });
   assert.equal(deleteResponse.status, 409);
-  assert.deepEqual(bookingReference, { "meals.foods.foodId": foodId.toString() });
+  assert.deepEqual(bookingReference, {
+    $or: [
+      { "meals.foods.foodId": foodId.toString() },
+      { "meals.desserts.foodId": foodId.toString() },
+    ],
+  });
 });

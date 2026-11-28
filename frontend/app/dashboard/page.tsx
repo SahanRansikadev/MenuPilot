@@ -72,11 +72,35 @@ type CatalogIngredient = {
   name: string;
 };
 
+type HotelBranch = {
+  id: string;
+  name: string;
+  location: string;
+};
+
 type FoodSearchCategory = "food" | "dessert";
 
 type SavedBooking = {
   id: string;
   date: string;
+  hotel: HotelBranch;
+  guestCount: number;
+  childrenCount: number;
+  driverCount: number;
+  guideCount: number;
+  meals: Array<{
+    type: string;
+    name?: string;
+    time: string;
+    foods: CatalogFood[];
+    desserts: CatalogFood[];
+    hasIngredients: boolean;
+    ingredients: CatalogIngredient[];
+  }>;
+  isVegetarian: boolean;
+  hasAllergies: boolean;
+  allergyCount: number;
+  notes: string;
 };
 
 export default function GuestDashboard() {
@@ -94,6 +118,10 @@ export default function GuestDashboard() {
   });
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [plannerStep, setPlannerStep] = useState<"guest-details" | "meals" | "foods" | "complete">("guest-details");
+  const [branchHotels, setBranchHotels] = useState<HotelBranch[]>([]);
+  const [hotelsLoaded, setHotelsLoaded] = useState(false);
+  const [selectedHotelId, setSelectedHotelId] = useState("");
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
   const [guestDateForm, setGuestDateForm] = useState(initialGuestDateForm);
   const [selectedMeals, setSelectedMeals] = useState<string[]>([]);
   const [selectedMealTimes, setSelectedMealTimes] = useState<Record<string, string>>({});
@@ -160,6 +188,95 @@ export default function GuestDashboard() {
       active = false;
     };
   }, [router]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHotels() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/hotels`, { credentials: "include" });
+        const result: { hotels?: HotelBranch[]; error?: string } = await response.json();
+        if (response.status === 401) {
+          router.replace("/");
+          return;
+        }
+        if (!response.ok || !result.hotels) {
+          throw new Error(result.error || "Unable to load hotel branches.");
+        }
+        if (active) {
+          setBranchHotels(result.hotels);
+          setSelectedHotelId(result.hotels[0]?.id || "");
+        }
+      } catch (error) {
+        if (active) setAuthError(error instanceof Error ? error.message : "Unable to load hotel branches.");
+      } finally {
+        if (active) setHotelsLoaded(true);
+      }
+    }
+
+    if (!authLoading) void loadHotels();
+    return () => {
+      active = false;
+    };
+  }, [authLoading, router]);
+
+  useEffect(() => {
+    if (authLoading || !hotelsLoaded || editingBookingId) return;
+    const bookingId = new URLSearchParams(window.location.search).get("editBooking");
+    if (!bookingId) return;
+    const requestedBookingId = bookingId;
+
+    let active = true;
+    async function loadBookingForEdit() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/bookings/${encodeURIComponent(requestedBookingId)}`, {
+          credentials: "include",
+        });
+        const result: { booking?: SavedBooking; error?: string } = await response.json();
+        if (response.status === 401) {
+          router.replace("/");
+          return;
+        }
+        if (!response.ok || !result.booking) {
+          throw new Error(result.error || "Unable to load this booking for editing.");
+        }
+        const booking = result.booking;
+        if (!active) return;
+        setEditingBookingId(booking.id);
+        setSelectedDate(new Date(`${booking.date}T00:00:00`));
+        setVisibleMonth(new Date(`${booking.date}T00:00:00`));
+        setSelectedHotelId(booking.hotel.id);
+        setGuestDateForm({
+          guestCount: String(booking.guestCount),
+          childCount: String(booking.childrenCount),
+          driverCount: String(booking.driverCount),
+          guideCount: String(booking.guideCount),
+        });
+        setSelectedMeals(booking.meals.map((meal) => meal.type));
+        setSelectedMealTimes(Object.fromEntries(booking.meals.map((meal) => [meal.type, meal.time])));
+        setOtherMealName(booking.meals.find((meal) => meal.type === "Other")?.name || "");
+        setFoodsByMeal(Object.fromEntries(booking.meals.map((meal) => [meal.type, meal.foods])));
+        setDessertsByMeal(Object.fromEntries(booking.meals.map((meal) => [meal.type, meal.desserts])));
+        setHasIngredientsByMeal(Object.fromEntries(booking.meals.map((meal) => [meal.type, meal.hasIngredients])));
+        setIngredientsByMeal(Object.fromEntries(booking.meals.map((meal) => [meal.type, meal.ingredients])));
+        setIsVegetarian(booking.isVegetarian);
+        setHasAllergies(booking.hasAllergies);
+        setAllergyCount(String(booking.allergyCount || 1));
+        setBookingNotes(booking.notes || "");
+        setSavedBooking(null);
+        setPlannerError("");
+        setPlannerStep("guest-details");
+        setPlannerOpen(true);
+      } catch (error) {
+        if (active) setAuthError(error instanceof Error ? error.message : "Unable to load this booking for editing.");
+      }
+    }
+
+    void loadBookingForEdit();
+    return () => {
+      active = false;
+    };
+  }, [authLoading, editingBookingId, hotelsLoaded, router]);
 
   useEffect(() => {
     if (plannerStep !== "foods" || !plannerOpen || !activeFoodSearchMeal) return;
@@ -284,6 +401,8 @@ export default function GuestDashboard() {
   }
 
   function openPlannerForDate(date: Date) {
+    setEditingBookingId(null);
+    setSelectedHotelId(branchHotels[0]?.id || "");
     setSelectedDate(date);
     setGuestDateForm(initialGuestDateForm);
     setSelectedMeals([]);
@@ -320,6 +439,10 @@ export default function GuestDashboard() {
     event.preventDefault();
     setPlannerError("");
 
+    if (!selectedHotelId) {
+      setPlannerError("Choose a hotel branch for this booking.");
+      return;
+    }
     if (Number(guestDateForm.childCount) > Number(guestDateForm.guestCount)) {
       setPlannerError("Children cannot be more than the total number of guests.");
       return;
@@ -744,11 +867,14 @@ export default function GuestDashboard() {
 
     setBookingSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/bookings`, {
-        method: "POST",
+      const response = await fetch(
+        `${API_BASE_URL}/bookings${editingBookingId ? `/${encodeURIComponent(editingBookingId)}` : ""}`,
+        {
+        method: editingBookingId ? "PUT" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          hotelId: selectedHotelId,
           date: `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`,
           guestCount: Number(guestDateForm.guestCount),
           childrenCount: Number(guestDateForm.childCount),
@@ -760,7 +886,8 @@ export default function GuestDashboard() {
             time: selectedMealTimes[type],
             hasIngredients: hasIngredientsByMeal[type] === true,
             ingredientIds: (ingredientsByMeal[type] || []).map((ingredient) => ingredient.id),
-            foodIds: [...(foodsByMeal[type] || []), ...(dessertsByMeal[type] || [])].map((food) => food.id),
+            foodIds: (foodsByMeal[type] || []).map((food) => food.id),
+            dessertIds: (dessertsByMeal[type] || []).map((food) => food.id),
           })),
           isVegetarian,
           hasAllergies,
@@ -1152,6 +1279,13 @@ export default function GuestDashboard() {
                   <h3>Who is joining you?</h3>
                   <p>Tell us how many people will be there on this date.</p>
                 </div>
+                <label>
+                  Hotel branch
+                  <select required value={selectedHotelId} onChange={(event) => setSelectedHotelId(event.target.value)} disabled={!hotelsLoaded || branchHotels.length === 0}>
+                    <option value="">{hotelsLoaded ? "Select a hotel branch" : "Loading hotel branches..."}</option>
+                    {branchHotels.map((hotel) => <option value={hotel.id} key={hotel.id}>{hotel.name} · {hotel.location}</option>)}
+                  </select>
+                </label>
                 <div className="planner-form-grid">
                   <label>
                     Number of guests
@@ -1379,7 +1513,7 @@ export default function GuestDashboard() {
                   <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)} disabled={bookingSubmitting || addingFoodForMeal !== null || addingIngredientForMeal !== null}>Cancel</button>
                   <button type="button" className="planner-back-button" onClick={() => { setPlannerError(""); setPlannerStep("meals"); }} disabled={bookingSubmitting || addingFoodForMeal !== null || addingIngredientForMeal !== null}>Back</button>
                   <button type="submit" className="planner-primary-button" disabled={bookingSubmitting || addingFoodForMeal !== null || addingIngredientForMeal !== null}>
-                    {bookingSubmitting ? "Saving..." : "Confirm booking"}
+                    {bookingSubmitting ? "Saving..." : editingBookingId ? "Save changes" : "Confirm booking"}
                   </button>
                 </div>
               </form>
@@ -1388,7 +1522,7 @@ export default function GuestDashboard() {
             {plannerStep === "complete" && (
               <div className="planner-complete">
                 <span className="planner-complete-icon"><CheckCircle2 size={26} /></span>
-                <h3>Your booking is saved</h3>
+                <h3>{editingBookingId ? "Your booking is updated" : "Your booking is saved"}</h3>
                 <p>Selections for {new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(selectedDate)}</p>
                 <div className="planner-complete-summary">
                   <span><b>Guests</b>{guestDateForm.guestCount} total · {guestDateForm.childCount} children</span>
