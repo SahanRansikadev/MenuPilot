@@ -25,7 +25,7 @@ const occasions = [
 ] as const;
 export default function Home() {
  const router=useRouter();
- const [slideIndex,setSlideIndex]=useState(0), [mobile,setMobile]=useState(false), [sent,setSent]=useState(false), [authMode,setAuthMode]=useState<"signin"|"signup"|null>(null), [authMessage,setAuthMessage]=useState(""), [authLoading,setAuthLoading]=useState(false);
+ const [slideIndex,setSlideIndex]=useState(0), [mobile,setMobile]=useState(false), [sent,setSent]=useState(false), [authMode,setAuthMode]=useState<"signin"|"signup"|null>(null), [authMessage,setAuthMessage]=useState(""), [authLoading,setAuthLoading]=useState(false), [getStartedLoading,setGetStartedLoading]=useState(false);
  useEffect(()=>{const t=window.setInterval(()=>setSlideIndex(v=>(v+1)%slides.length),5500);return()=>window.clearInterval(t)},[]);
  useEffect(()=>{
   if(!authMode)return;
@@ -36,6 +36,23 @@ export default function Home() {
   return()=>{document.body.style.overflow=previousOverflow;window.removeEventListener("keydown",closeOnEscape)};
  },[authMode]);
  const openAuth=(mode:"signin"|"signup")=>{setAuthMode(mode);setAuthMessage("");setMobile(false)};
+ const handleGetStarted=async()=>{
+  setGetStartedLoading(true);
+  try {
+   const response=await fetch(`${API_BASE_URL}/auth/me`,{credentials:"include"});
+   const result:{user?:{id?:string}}=await response.json();
+   if(response.ok&&result.user?.id){
+    router.push("/dashboard");
+    router.refresh();
+    return;
+   }
+   openAuth("signin");
+  } catch {
+   openAuth("signin");
+  } finally {
+   setGetStartedLoading(false);
+  }
+ };
  const slide=slides[slideIndex];
  return <main>
   <header className="header">
@@ -48,7 +65,7 @@ export default function Home() {
   <section className="hero" id="home">
    {slides.map((s,i)=><div key={s.kicker} className={"hero-photo "+(i===slideIndex?"active":"")} style={{backgroundImage:`url("${s.image}")`}} role="img" aria-label={s.alt}/>)}
    <div className="hero-overlay"/>
-   <div className="hero-copy" key={slideIndex}><div className="eyebrow light"><i/>{slide.kicker}</div><h1>{slide.title}<br/><em>{slide.accent}</em></h1><p>{slide.copy}</p><div className="hero-buttons"><a className="btn primary" href="/dashboard">Get started <ArrowRight size={17}/></a><a className="explore" href="#occasions">Explore occasions <span>↗</span></a></div></div>
+   <div className="hero-copy" key={slideIndex}><div className="eyebrow light"><i/>{slide.kicker}</div><h1>{slide.title}<br/><em>{slide.accent}</em></h1><p>{slide.copy}</p><div className="hero-buttons"><button className="btn primary" type="button" onClick={handleGetStarted} disabled={getStartedLoading}>{getStartedLoading?"Checking...":"Get started"} <ArrowRight size={17}/></button><a className="explore" href="#occasions">Explore occasions <span>↗</span></a></div></div>
    <div className="hero-footer"><span>{slide.caption}</span><div className="slider"><b>0{slideIndex+1} <i>/ 0{slides.length}</i></b><button onClick={()=>setSlideIndex((slideIndex+slides.length-1)%slides.length)} aria-label="Previous slide"><ChevronLeft/></button><button onClick={()=>setSlideIndex((slideIndex+1)%slides.length)} aria-label="Next slide"><ChevronRight/></button></div></div>
    <div className="dots">{slides.map((s,i)=><button key={s.kicker} className={i===slideIndex?"chosen":""} onClick={()=>setSlideIndex(i)} aria-label={`Slide ${i+1}`}/>)}</div>
   </section>
