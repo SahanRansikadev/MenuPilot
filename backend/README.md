@@ -52,7 +52,8 @@ For local smoke testing, run `npm test`, then `npm run dev` and request `http://
 - `PATCH /api/admin/users/:id/role` — admin-only role management
 - `GET /api/admin/bookings` and `PATCH /api/admin/bookings/:id/status` — admin booking management
 - `GET /api/admin/hotels`, `POST /api/admin/hotels`, `PUT /api/admin/hotels/:id`, `DELETE /api/admin/hotels/:id` — admin hotel management
-- `GET /api/admin/menus`, `POST /api/admin/menus`, `PUT /api/admin/menus/:id`, `DELETE /api/admin/menus/:id` — admin menu and recipe management
+- `GET /api/admin/menus`, `POST /api/admin/menus`, `PUT /api/admin/menus/:id`, `DELETE /api/admin/menus/:id` — admin menu management using hotel, meal type, recipe-name list, and description
+- `GET /api/menus` — guest menu view grouped by hotel and ordered by meal type
 - `GET`/`POST /api/admin/foods` and `/api/admin/ingredients`, plus `PUT`/`DELETE /api/admin/foods/:id` and `/api/admin/ingredients/:id` — admin catalog management; items referenced by existing bookings cannot be deleted
 - `GET /api/admin/kitchen/tasks` — admin view of kitchen tasks
 - `POST /api/admin/kitchen/meal-tasks` — assign one booking meal, its recipe, and quantified supply list to a kitchen team member; guest-provided ingredients are rejected and missing catalog ingredients are added

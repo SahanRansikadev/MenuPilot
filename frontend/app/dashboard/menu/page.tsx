@@ -27,7 +27,7 @@ const navigation = [
   { label: "Menus", href: "/dashboard/menu", Icon: Utensils },
 ];
 
-const properties = [
+const demoProperties = [
   {
     name: "Villa Serene",
     location: "Galle, Southern Province",
@@ -70,6 +70,19 @@ const properties = [
   },
 ];
 
+type MenuGroup = {
+  hotelName: string;
+  mealType: string;
+  recipeNames: string[];
+  description: string;
+};
+
+type HotelBranch = {
+  id: string;
+  name: string;
+  location: string;
+};
+
 type AuthenticatedUser = {
   id: string;
   name: string;
@@ -82,6 +95,9 @@ export default function MenuPage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState("");
+  const [managedMenus, setManagedMenus] = useState<MenuGroup[] | null>(null);
+  const [menuError, setMenuError] = useState("");
+  const [hotelLocations, setHotelLocations] = useState<Record<string, string>>({});
   const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -117,6 +133,48 @@ export default function MenuPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (authLoading) return;
+    let active = true;
+
+    async function loadMenus() {
+      try {
+        const [menuResponse, hotelResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/menus`, { credentials: "include" }),
+          fetch(`${API_BASE_URL}/hotels`, { credentials: "include" }),
+        ]);
+        if (menuResponse.status === 401 || hotelResponse.status === 401) {
+          router.replace("/");
+          return;
+        }
+        const menuResult: { menus?: MenuGroup[]; error?: string } = await menuResponse.json();
+        const hotelResult: { hotels?: HotelBranch[]; error?: string } = await hotelResponse.json();
+        if (!menuResponse.ok || !menuResult.menus) {
+          throw new Error(menuResult.error || "Unable to load hotel menus.");
+        }
+        if (!hotelResponse.ok || !hotelResult.hotels) {
+          throw new Error(hotelResult.error || "Unable to load hotel details.");
+        }
+        if (active) {
+          const locationByHotel = new Map(hotelResult.hotels.map((hotel) => [hotel.name.toLocaleLowerCase(), hotel.location]));
+          setManagedMenus(menuResult.menus.map((menu) => ({
+            ...menu,
+            description: menu.description || "",
+            recipeNames: menu.recipeNames || [],
+          })));
+          setHotelLocations(Object.fromEntries(locationByHotel));
+        }
+      } catch (error) {
+        if (active) setMenuError(error instanceof Error ? error.message : "Unable to load hotel menus.");
+      }
+    }
+
+    void loadMenus();
+    return () => {
+      active = false;
+    };
+  }, [authLoading, router]);
+
   async function handleSignOut() {
     setSigningOut(true);
     setAuthError("");
@@ -141,6 +199,32 @@ export default function MenuPage() {
     .join("")
     .slice(0, 2)
     .toUpperCase() || "MP";
+  const displayProperties = managedMenus === null
+    ? []
+    : managedMenus.length === 0
+      ? demoProperties
+      : Array.from(managedMenus.reduce((grouped, menu) => {
+          const property = grouped.get(menu.hotelName) || {
+            name: menu.hotelName,
+            location: hotelLocations[menu.hotelName.toLocaleLowerCase()] || "",
+            description: "Browse the available recipes by meal type.",
+            meals: [] as Array<{ name: string; items: string; note: string; Icon: typeof Coffee }>,
+          };
+          const Icon = menu.mealType === "Breakfast" ? Coffee : menu.mealType === "Dinner" ? Utensils : Soup;
+          property.meals.push({
+            name: menu.mealType,
+            items: menu.recipeNames.join(", "),
+            note: menu.description,
+            Icon,
+          });
+          grouped.set(menu.hotelName, property);
+          return grouped;
+        }, new Map<string, {
+          name: string;
+          location: string;
+          description: string;
+          meals: Array<{ name: string; items: string; note: string; Icon: typeof Coffee }>;
+        }>()).values());
 
   return (
     <main className="guest-dashboard">
@@ -185,6 +269,7 @@ export default function MenuPage() {
         <header className="dashboard-topbar">
           <div className="dashboard-breadcrumb">
             <button className="dashboard-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><MenuIcon size={20} /></button>
+            <span className="dashboard-brand-icon menu-header-logo" aria-hidden="true" />
             <span>Workspace</span><ChevronRight size={15} /><b>Menus</b>
           </div>
           <div className="dashboard-top-actions">
@@ -202,18 +287,20 @@ export default function MenuPage() {
             <div>
               <div className="dashboard-eyebrow"><i /> MENUS BY PROPERTY</div>
               <h1>Property menus</h1>
-              <p>Browse sample menus for each hotel and venue.</p>
+              <p>Browse each hotel's meal types and available recipes.</p>
             </div>
           </section>
           {authError && <p className="dashboard-auth-error" role="alert">{authError}</p>}
+          {menuError && <p className="dashboard-auth-error" role="alert">{menuError}</p>}
+          {managedMenus === null && !menuError && <p className="section-booking-message">Loading hotel menus...</p>}
           <section className="menu-grid" aria-label="Hotel menus">
-            {properties.map((property) => {
+            {displayProperties.map((property) => {
               const isExpanded = expandedProperty === property.name;
               return (
                 <article className="menu-property-card" key={property.name}>
                   <div className="menu-property-heading">
                     <div><h2>{property.name}</h2><p>{property.location}</p></div>
-                    <span className="menu-demo-badge">DEMO MENU</span>
+                    <span className="menu-demo-badge">{managedMenus?.length ? "HOTEL MENU" : "DEMO MENU"}</span>
                   </div>
                   <p className="menu-property-description">{property.description}</p>
                   <button
@@ -238,7 +325,7 @@ export default function MenuPage() {
               );
             })}
           </section>
-          <p className="menu-demo-note">Sample menus are for demonstration only. Menu items and dietary options may vary by property.</p>
+          {managedMenus?.length === 0 && <p className="menu-demo-note">Sample menus are for demonstration only. Menu items and dietary options may vary by property.</p>}
           <footer className="dashboard-footer"><span>© 2026 MenuPilot Guest Portal</span><span>Made for memorable moments <span className="footer-heart">♥</span></span></footer>
         </div>
       </section>

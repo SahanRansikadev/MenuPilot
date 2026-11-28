@@ -9,6 +9,7 @@ const foodRoutes = require("./routes/foods");
 const hotelRoutes = require("./routes/hotels");
 const ingredientRoutes = require("./routes/ingredients");
 const kitchenRoutes = require("./routes/kitchen");
+const menuRoutes = require("./routes/menus");
 
 const app = express();
 const frontendOrigins = (process.env.FRONTEND_URL || "http://localhost:3000")
@@ -48,6 +49,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/kitchen", kitchenRoutes);
 app.use("/api/foods", foodRoutes);
 app.use("/api/hotels", hotelRoutes);
+app.use("/api/menus", menuRoutes);
 app.use("/api/ingredients", ingredientRoutes);
 app.use("/api/bookings", bookingRoutes);
 

@@ -85,11 +85,9 @@ type HotelEntry = {
 type MenuEntry = {
   id: string;
   hotelName: string;
-  name: string;
+  recipeNames: string[];
   mealType: MenuMealType;
   description: string;
-  ingredients: string[];
-  instructions: string;
 };
 
 type KitchenTask = {
@@ -118,11 +116,9 @@ type KitchenTask = {
 
 type MenuForm = {
   hotelName: string;
-  name: string;
   mealType: MenuMealType;
+  recipeNames: string[];
   description: string;
-  ingredientsText: string;
-  instructions: string;
 };
 
 const mealTypes: MenuMealType[] = ["Breakfast", "Lunch", "Tea time", "Dinner", "Barbecue", "Other"];
@@ -141,11 +137,9 @@ const tabs: Array<{ id: AdminTab; label: string; Icon: typeof LayoutDashboard }>
 
 const blankMenuForm: MenuForm = {
   hotelName: "",
-  name: "",
   mealType: "Breakfast",
+  recipeNames: [],
   description: "",
-  ingredientsText: "",
-  instructions: "",
 };
 
 const blankHotelForm = { name: "", location: "", description: "", contactName: "", phone: "", email: "" };
@@ -191,6 +185,7 @@ export default function AdminDashboardPage() {
   const [message, setMessage] = useState("");
   const [editingMenuId, setEditingMenuId] = useState("");
   const [menuForm, setMenuForm] = useState<MenuForm>(blankMenuForm);
+  const [menuRecipeInput, setMenuRecipeInput] = useState("");
   const [foodName, setFoodName] = useState("");
   const [ingredientName, setIngredientName] = useState("");
   const [editingFoodId, setEditingFoodId] = useState("");
@@ -412,32 +407,46 @@ export default function AdminDashboardPage() {
     setEditingMenuId(menu.id);
     setMenuForm({
       hotelName: menu.hotelName,
-      name: menu.name,
       mealType: menu.mealType,
+      recipeNames: menu.recipeNames,
       description: menu.description,
-      ingredientsText: menu.ingredients.join("\n"),
-      instructions: menu.instructions,
     });
+    setMenuRecipeInput("");
     setActiveTab("menus");
   }
 
   function resetMenuForm() {
     setEditingMenuId("");
     setMenuForm(blankMenuForm);
+    setMenuRecipeInput("");
+  }
+
+  function addMenuRecipe() {
+    const name = menuRecipeInput.trim().replace(/\s+/g, " ");
+    if (!name) return;
+    if (menuForm.recipeNames.some((recipeName) => recipeName.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      setPageError("That recipe name is already in this meal type.");
+      return;
+    }
+    setPageError("");
+    setMenuForm((form) => ({ ...form, recipeNames: [...form.recipeNames, name] }));
+    setMenuRecipeInput("");
   }
 
   async function saveMenu(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (menuForm.recipeNames.length === 0) {
+      setPageError("Add at least one recipe name before saving.");
+      return;
+    }
     setBusy(true);
     setPageError("");
     setMessage("");
     const body = JSON.stringify({
       hotelName: menuForm.hotelName,
-      name: menuForm.name,
       mealType: menuForm.mealType,
+      recipeNames: menuForm.recipeNames,
       description: menuForm.description,
-      ingredients: menuForm.ingredientsText.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
-      instructions: menuForm.instructions,
     });
     try {
       await request(editingMenuId ? `/admin/menus/${editingMenuId}` : "/admin/menus", {
@@ -455,7 +464,7 @@ export default function AdminDashboardPage() {
   }
 
   async function deleteMenu(menu: MenuEntry) {
-    if (!window.confirm(`Delete "${menu.name}" from ${menu.hotelName}?`)) return;
+    if (!window.confirm(`Delete the ${menu.mealType} menu for ${menu.hotelName}?`)) return;
     setBusy(true);
     setPageError("");
     setMessage("");
@@ -766,27 +775,47 @@ export default function AdminDashboardPage() {
               {activeTab === "menus" && (
                 <div className="admin-menus-layout">
                   <form className="admin-card admin-menu-form" onSubmit={saveMenu}>
-                    <div className="admin-card-heading"><div><h2>{editingMenuId ? "Update menu" : "Create a menu"}</h2><p>Add a recipe that can be sent to a kitchen team.</p></div>{editingMenuId && <button type="button" className="admin-icon-button" aria-label="Cancel editing" onClick={resetMenuForm}><X size={16} /></button>}</div>
+                    <div className="admin-card-heading"><div><h2>{editingMenuId ? "Update menu" : "Create a menu"}</h2><p>Add recipe names under a hotel's meal type.</p></div>{editingMenuId && <button type="button" className="admin-icon-button" aria-label="Cancel editing" onClick={resetMenuForm}><X size={16} /></button>}</div>
                     <label>Hotel or property<select required value={menuForm.hotelName} onChange={(event) => setMenuForm((form) => ({ ...form, hotelName: event.target.value }))}><option value="">Select a managed hotel</option>{hotels.map((hotel) => <option value={hotel.name} key={hotel.id}>{hotel.name} · {hotel.location}</option>)}</select>{!hotels.length && <small>Add a hotel in Hotel management before creating a menu.</small>}</label>
-                    <div className="admin-form-row">
-                      <label>Recipe name<input required maxLength={100} value={menuForm.name} onChange={(event) => setMenuForm((form) => ({ ...form, name: event.target.value }))} placeholder="e.g. Coconut chicken curry" /></label>
-                      <label>Meal type<select value={menuForm.mealType} onChange={(event) => setMenuForm((form) => ({ ...form, mealType: event.target.value as MenuMealType }))}>{mealTypes.map((meal) => <option key={meal}>{meal}</option>)}</select></label>
+                    <label>Meal type<select value={menuForm.mealType} onChange={(event) => setMenuForm((form) => ({ ...form, mealType: event.target.value as MenuMealType }))}>{mealTypes.map((meal) => <option key={meal}>{meal}</option>)}</select></label>
+                    <div className="admin-recipe-editor">
+                      <label htmlFor="menu-recipe-name">Recipe names</label>
+                      <div className="admin-recipe-entry">
+                        <input
+                          id="menu-recipe-name"
+                          maxLength={100}
+                          value={menuRecipeInput}
+                          onChange={(event) => setMenuRecipeInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              addMenuRecipe();
+                            }
+                          }}
+                          placeholder="e.g. Coconut chicken curry"
+                        />
+                        <button type="button" className="admin-secondary-button" onClick={addMenuRecipe}>Add</button>
+                      </div>
+                      <div className="admin-recipe-name-list">
+                        {menuForm.recipeNames.map((name, index) => (
+                          <span key={`${name}-${index}`}>{name}<button type="button" aria-label={`Remove ${name}`} onClick={() => setMenuForm((form) => ({ ...form, recipeNames: form.recipeNames.filter((_, recipeIndex) => recipeIndex !== index) }))}><X size={13} /></button></span>
+                        ))}
+                        {!menuForm.recipeNames.length && <small>Add one or more recipe names using the Add button.</small>}
+                      </div>
                     </div>
                     <label>Menu description <small>Optional</small><textarea rows={2} maxLength={500} value={menuForm.description} onChange={(event) => setMenuForm((form) => ({ ...form, description: event.target.value }))} placeholder="Short description of this dish..." /></label>
-                    <label>Ingredients <small>One per line; include quantities and units</small><textarea required rows={5} value={menuForm.ingredientsText} onChange={(event) => setMenuForm((form) => ({ ...form, ingredientsText: event.target.value }))} placeholder={"Chicken - 1 kg\nCoconut milk - 500 ml\nCurry leaves - 1 handful"} /></label>
-                    <label>Preparation instructions<textarea required rows={5} maxLength={5000} value={menuForm.instructions} onChange={(event) => setMenuForm((form) => ({ ...form, instructions: event.target.value }))} placeholder="Write the recipe steps for the kitchen team..." /></label>
                     <div className="admin-form-actions">{editingMenuId && <button type="button" className="admin-secondary-button" onClick={resetMenuForm}>Cancel</button>}<button className="admin-primary-button" disabled={busy}><Save size={15} />{busy ? "Saving..." : editingMenuId ? "Update menu" : "Save menu"}</button></div>
                   </form>
                   <section className="admin-menu-list">
-                    <div className="admin-card-heading"><div><h2>Saved menus</h2><p>{menus.length} recipes available to assign.</p></div></div>
+                    <div className="admin-card-heading"><div><h2>Saved menus</h2><p>{menus.length} hotel meal types managed.</p></div></div>
                     {menus.map((menu) => (
                       <article className="admin-menu-card" key={menu.id}>
-                        <div className="admin-menu-card-heading"><div><span className="admin-menu-meal">{menu.mealType}</span><h3>{menu.name}</h3><small>{menu.hotelName}</small></div><div className="admin-row-actions"><button className="admin-icon-button" type="button" aria-label={`Edit ${menu.name}`} onClick={() => editMenu(menu)}><Pencil size={15} /></button><button className="admin-icon-button danger" type="button" aria-label={`Delete ${menu.name}`} disabled={busy} onClick={() => void deleteMenu(menu)}><Trash2 size={15} /></button></div></div>
+                        <div className="admin-menu-card-heading"><div><span className="admin-menu-meal">{menu.hotelName}</span><h3>{menu.mealType}</h3></div><div className="admin-row-actions"><button className="admin-icon-button" type="button" aria-label={`Edit ${menu.mealType} at ${menu.hotelName}`} onClick={() => editMenu(menu)}><Pencil size={15} /></button><button className="admin-icon-button danger" type="button" aria-label={`Delete ${menu.mealType} at ${menu.hotelName}`} disabled={busy} onClick={() => void deleteMenu(menu)}><Trash2 size={15} /></button></div></div>
+                        <ul className="admin-menu-recipe-list">{menu.recipeNames.map((name, index) => <li key={`${name}-${index}`}>{name}</li>)}</ul>
                         {menu.description && <p>{menu.description}</p>}
-                        <small className="admin-menu-ingredients"><b>Ingredients:</b> {menu.ingredients.join(", ")}</small>
                       </article>
                     ))}
-                    {!menus.length && <div className="admin-empty-state">No menus yet. Create a recipe to get started.</div>}
+                    {!menus.length && <div className="admin-empty-state">No menus yet. Create a hotel meal type to get started.</div>}
                   </section>
                 </div>
               )}
