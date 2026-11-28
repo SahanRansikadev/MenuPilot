@@ -25,6 +25,12 @@ const mealSchema = new mongoose.Schema(
         name: { type: String, required: true, trim: true, maxlength: 100 },
       },
     ],
+    desserts: [
+      {
+        foodId: { type: mongoose.Schema.Types.ObjectId, ref: "Food", required: true },
+        name: { type: String, required: true, trim: true, maxlength: 100 },
+      },
+    ],
   },
   { _id: false },
 );
@@ -32,6 +38,11 @@ const mealSchema = new mongoose.Schema(
 const bookingSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    guestName: { type: String, trim: true, maxlength: 100, default: "" },
+    guestEmail: { type: String, lowercase: true, trim: true, maxlength: 254, default: "" },
+    hotelId: { type: mongoose.Schema.Types.ObjectId, ref: "Hotel", required: true, index: true },
+    hotelName: { type: String, required: true, trim: true, maxlength: 100 },
+    hotelLocation: { type: String, required: true, trim: true, maxlength: 150 },
     status: {
       type: String,
       enum: ["pending", "confirmed", "preparing", "completed", "cancelled"],

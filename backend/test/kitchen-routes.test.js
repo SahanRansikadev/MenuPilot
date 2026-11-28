@@ -15,6 +15,7 @@ test("kitchen team can see assigned work and advance its status", async (t) => {
   const kitchenMemberId = new mongoose.Types.ObjectId();
   const taskId = new mongoose.Types.ObjectId();
   const bookingId = new mongoose.Types.ObjectId();
+  const supplyId = new mongoose.Types.ObjectId();
   let queriedAssignee;
   let saved = false;
   const task = {
@@ -26,6 +27,19 @@ test("kitchen team can see assigned work and advance its status", async (t) => {
     mealType: "Dinner",
     description: "",
     ingredients: ["Coconut milk", "Chicken"],
+    supplies: [{
+      _id: supplyId,
+      name: "Coconut milk",
+      quantity: 500,
+      unit: "ml",
+      received: false,
+    }],
+    foods: [{ name: "Coconut curry" }],
+    desserts: [{ name: "Watalappan" }],
+    guestIngredients: [],
+    mealIndex: 0,
+    costingStatus: "not_submitted",
+    actualTotalPrice: null,
     instructions: "Simmer until cooked.",
     notes: "Serve at 7pm.",
     status: "sent",
@@ -86,4 +100,37 @@ test("kitchen team can see assigned work and advance its status", async (t) => {
   assert.equal((await statusResponse.json()).task.status, "accepted");
   assert.equal(task.status, "accepted");
   assert.equal(saved, true);
+
+  const incompleteSupplyResponse = await fetch(`${baseUrl}/${taskId}/supply`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ supplies: [], actualTotalPrice: 1250 }),
+  });
+  assert.equal(incompleteSupplyResponse.status, 400);
+
+  const supplyResponse = await fetch(`${baseUrl}/${taskId}/supply`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      supplies: [{ id: supplyId.toString(), received: true }],
+      actualTotalPrice: 1250,
+    }),
+  });
+  assert.equal(supplyResponse.status, 200);
+  assert.equal(task.supplies[0].received, true);
+  assert.equal(task.actualTotalPrice, 1250);
+  assert.equal(task.costingStatus, "submitted");
+
+  const preparingResponse = await fetch(`${baseUrl}/${taskId}/status`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ status: "preparing" }),
+  });
+  assert.equal(preparingResponse.status, 200);
+  const readyResponse = await fetch(`${baseUrl}/${taskId}/status`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ status: "ready" }),
+  });
+  assert.equal(readyResponse.status, 200);
 });

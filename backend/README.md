@@ -21,7 +21,7 @@ db.users.updateOne(
 )
 ```
 
-Confirm `matchedCount` and `modifiedCount` are both `1`. The account can then sign in and open `/dashboard/admin`. New sign-ups always receive the `guest` role; users cannot select or grant themselves a role. Admins can assign `admin`, `kitchenTeam`, or `guest` roles from User management. The last administrator cannot be demoted.
+Confirm `matchedCount` and `modifiedCount` are both `1`. The account can then sign in and open `/dashboard/admin`. New sign-ups always receive the `guest` role; users cannot select or grant themselves a role. Admins can update user details and assign `admin`, `kitchenTeam`, or `guest` roles from User management. The last administrator cannot be demoted or deleted; active kitchen tasks must be completed or declined before changing or deleting a kitchen account.
 
 The API listens on port `5000` by default. `FRONTEND_URL` accepts a comma-separated list of exact frontend origins (for example, `http://localhost:3000,https://your-frontend.vercel.app`); do not use a wildcard for credentialed CORS.
 `MONGODB_DB_NAME` is an optional explicit database override. If unset, the app uses the database path in `MONGODB_URI`; only when the URI has no database path does it default to `menupilot`.
@@ -45,19 +45,28 @@ For local smoke testing, run `npm test`, then `npm run dev` and request `http://
 
 - `POST /api/auth/signup` — `{ "name": "...", "email": "...", "password": "..." }`
 - `POST /api/auth/signin` — `{ "email": "...", "password": "..." }`
-- `GET /api/auth/me` — returns the authenticated user's name and email
+- `GET /api/auth/me` — returns the authenticated user's identity and role
 - `POST /api/auth/logout` — revokes the session and clears its cookie
 - `GET /api/admin/users` — admin-only account list
+- `PUT /api/admin/users/:id` and `DELETE /api/admin/users/:id` — admin-only user editing and deletion
 - `PATCH /api/admin/users/:id/role` — admin-only role management
 - `GET /api/admin/bookings` and `PATCH /api/admin/bookings/:id/status` — admin booking management
+- `GET /api/admin/hotels`, `POST /api/admin/hotels`, `PUT /api/admin/hotels/:id`, `DELETE /api/admin/hotels/:id` — admin hotel management
 - `GET /api/admin/menus`, `POST /api/admin/menus`, `PUT /api/admin/menus/:id`, `DELETE /api/admin/menus/:id` — admin menu and recipe management
-- `GET /api/admin/kitchen/tasks` and `POST /api/admin/kitchen/tasks` — assign a menu recipe and its ingredient list to a kitchen team member for a booking
+- `GET`/`POST /api/admin/foods` and `/api/admin/ingredients`, plus `PUT`/`DELETE /api/admin/foods/:id` and `/api/admin/ingredients/:id` — admin catalog management; items referenced by existing bookings cannot be deleted
+- `GET /api/admin/kitchen/tasks` — admin view of kitchen tasks
+- `POST /api/admin/kitchen/meal-tasks` — assign one booking meal, its recipe, and quantified supply list to a kitchen team member; guest-provided ingredients are rejected and missing catalog ingredients are added
+- `GET /api/admin/kitchen/costing` and `PATCH /api/admin/kitchen/tasks/:id/costing` — review and confirm the kitchen team's actual cost
+- `POST /api/admin/kitchen/tasks` — legacy menu-recipe task assignment
 - `GET /api/kitchen/tasks` — kitchen-team member's assigned tasks
 - `PATCH /api/kitchen/tasks/:id/status` — kitchen team advances an assigned task through accepted, preparing, and ready
+- `PATCH /api/kitchen/tasks/:id/supply` — kitchen team submits received/missing supply checks and actual supplier total
+- `GET /api/hotels` — guest-accessible hotel branch list for booking
 - `GET /api/foods?search=...` — searches the authenticated shared food catalog
 - `POST /api/foods` — adds a food to the catalog or returns its existing match
-- `GET /api/bookings` — lists bookings for the authenticated user
-- `POST /api/bookings` — validates and saves a booking with its meals and food selections
+- `GET /api/bookings` and `GET /api/bookings/:id` — lists or views the authenticated guest's bookings
+- `POST /api/bookings` and `PUT /api/bookings/:id` — save or update a booking with a hotel branch, meals, food, and dessert selections
+- `DELETE /api/bookings/:id` — deletes the authenticated guest's booking and cancels its open kitchen tasks
 - `GET /` — liveness check returning `{ "status": "ok", "message": "MenuPilot Backend is running!" }`
 - `GET /api/health` — liveness check returning `{ "success": true, "message": "MenuPilot Backend is running", "status": "OK" }`
 - Unknown routes return a JSON 404 response.

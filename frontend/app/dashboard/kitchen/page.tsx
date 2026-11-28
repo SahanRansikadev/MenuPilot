@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -27,6 +28,16 @@ type KitchenTask = {
   mealType: string;
   description: string;
   ingredients: string[];
+  supplies: Array<{ id: string; name: string; quantity: number; unit: string; received: boolean }>;
+  foods: Array<{ name: string }>;
+  desserts: Array<{ name: string }>;
+  guestIngredients: Array<{ name: string }>;
+  isVegetarian: boolean;
+  hasAllergies: boolean;
+  allergyCount: number;
+  costingStatus: "not_submitted" | "submitted" | "confirmed" | "cancelled";
+  actualTotalPrice: number | null;
+  mealIndex: number | null;
   instructions: string;
   notes: string;
   status: "sent" | "accepted" | "preparing" | "ready" | "cancelled";
@@ -66,6 +77,7 @@ export default function KitchenTeamPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [member, setMember] = useState<KitchenMember | null>(null);
   const [tasks, setTasks] = useState<KitchenTask[]>([]);
+  const [supplyDrafts, setSupplyDrafts] = useState<Record<string, { received: Record<string, boolean>; actualTotalPrice: string }>>({});
   const [loading, setLoading] = useState(true);
   const [busyTaskId, setBusyTaskId] = useState("");
   const [signingOut, setSigningOut] = useState(false);
@@ -82,6 +94,13 @@ export default function KitchenTeamPage() {
       ]);
       setMember(account.user);
       setTasks(taskResult.tasks);
+      setSupplyDrafts(Object.fromEntries(taskResult.tasks.map((task) => [
+        task.id,
+        {
+          received: Object.fromEntries(task.supplies.map((supply) => [supply.id, supply.received])),
+          actualTotalPrice: task.actualTotalPrice === null ? "" : String(task.actualTotalPrice),
+        },
+      ])));
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Unable to load kitchen tasks.");
     } finally {
@@ -106,6 +125,40 @@ export default function KitchenTeamPage() {
       await loadTasks();
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Unable to update this task.");
+    } finally {
+      setBusyTaskId("");
+    }
+  }
+
+  async function submitSupply(task: KitchenTask, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const draft = supplyDrafts[task.id];
+    if (!draft || draft.actualTotalPrice.trim() === "") {
+      setPageError("Enter the actual total supplier price before submitting.");
+      return;
+    }
+    setBusyTaskId(task.id);
+    setPageError("");
+    setMessage("");
+    try {
+      const actualTotalPrice = Number(draft.actualTotalPrice);
+      if (!Number.isFinite(actualTotalPrice) || actualTotalPrice < 0 || actualTotalPrice > 100000000) {
+        throw new Error("Enter a valid actual supplier total.");
+      }
+      await request(`/kitchen/tasks/${task.id}/supply`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          supplies: task.supplies.map((supply) => ({
+            id: supply.id,
+            received: Boolean(draft.received[supply.id]),
+          })),
+          actualTotalPrice,
+        }),
+      });
+      setMessage(`Supply checklist and actual total submitted for "${task.recipeName}".`);
+      await loadTasks();
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Unable to submit this supply checklist.");
     } finally {
       setBusyTaskId("");
     }
@@ -165,12 +218,77 @@ export default function KitchenTeamPage() {
                     <div className="kitchen-task-card-top"><span className={`admin-status ${task.status}`}>{task.status}</span><span className="kitchen-meal-type">{task.mealType}</span></div>
                     <div className="kitchen-task-title"><span><ChefHat size={20} /></span><div><h2>{task.recipeName}</h2><p>{task.hotelName}</p></div></div>
                     <div className="kitchen-booking-details"><span><CalendarDays size={15} />{formatDate(task.booking.date)}</span><span><Users size={15} />{task.booking.guestCount} guests</span></div>
+                    <section className="kitchen-supplies">
+                      <h3><Utensils size={15} /> Meal and guest preferences</h3>
+                      <p><b>Foods:</b> {task.foods.map((food) => food.name).join(", ") || "Not specified"}</p>
+                      <p><b>Desserts:</b> {task.desserts.map((food) => food.name).join(", ") || "None"}</p>
+                      <p><b>Guest brings:</b> {task.guestIngredients.map((item) => item.name).join(", ") || "None"}</p>
+                      <p><b>Diet:</b> {task.isVegetarian ? "Vegetarian" : "No vegetarian preference"} · {task.hasAllergies ? `${task.allergyCount} guest(s) with allergies` : "No reported allergies"}</p>
+                    </section>
+                    <section className="kitchen-supplies">
+                      <h3><Utensils size={15} /> Ingredient supply list</h3>
+                      {task.supplies.length ? (
+                        <form className="kitchen-supply-form" onSubmit={(event) => void submitSupply(task, event)}>
+                          <ul>{task.supplies.map((supply) => {
+                            const received = Boolean(supplyDrafts[task.id]?.received[supply.id]);
+                            return <li key={supply.id}>
+                              <label className="kitchen-supply-check">
+                                <input
+                                  type="checkbox"
+                                  checked={received}
+                                  disabled={task.costingStatus === "confirmed" || task.status === "ready" || task.status === "cancelled"}
+                                  onChange={(event) => setSupplyDrafts((current) => ({
+                                    ...current,
+                                    [task.id]: {
+                                      received: { ...current[task.id]?.received, [supply.id]: event.target.checked },
+                                      actualTotalPrice: current[task.id]?.actualTotalPrice || "",
+                                    },
+                                  }))}
+                                />
+                                <span><b>{supply.name}</b> · {supply.quantity} {supply.unit} <small>{received ? "Received" : "Missing"}</small></span>
+                              </label>
+                            </li>;
+                          })}</ul>
+                          <label className="kitchen-total-price">Actual total supplier price
+                            <input
+                              required
+                              type="number"
+                              min="0"
+                              max="100000000"
+                              step="any"
+                              value={supplyDrafts[task.id]?.actualTotalPrice || ""}
+                              disabled={task.costingStatus === "confirmed" || task.status === "ready" || task.status === "cancelled"}
+                              onChange={(event) => setSupplyDrafts((current) => ({
+                                ...current,
+                                [task.id]: {
+                                  received: current[task.id]?.received || {},
+                                  actualTotalPrice: event.target.value,
+                                },
+                              }))}
+                            />
+                          </label>
+                          <button className="admin-primary-button" type="submit" disabled={busyTaskId === task.id || task.costingStatus === "confirmed" || task.status === "ready" || task.status === "cancelled"}>
+                            {busyTaskId === task.id ? "Submitting..." : task.costingStatus === "submitted" ? "Update checklist & total" : "Submit checklist & total"}
+                          </button>
+                          {task.costingStatus === "submitted" && <small className="admin-form-hint">Submitted for admin costing confirmation.</small>}
+                        </form>
+                      ) : (
+                        <div>
+                          <ul>{task.ingredients.map((ingredient) => <li key={ingredient}>{ingredient}</li>)}</ul>
+                          {task.mealIndex !== null && task.mealIndex !== undefined && task.costingStatus !== "confirmed" && task.status !== "ready" && task.status !== "cancelled" && (
+                            <form className="kitchen-supply-form" onSubmit={(event) => void submitSupply(task, event)}>
+                              <label className="kitchen-total-price">Actual total supplier price<input required type="number" min="0" max="100000000" step="any" value={supplyDrafts[task.id]?.actualTotalPrice || ""} onChange={(event) => setSupplyDrafts((current) => ({ ...current, [task.id]: { received: {}, actualTotalPrice: event.target.value } }))} /></label>
+                              <button className="admin-primary-button" type="submit" disabled={busyTaskId === task.id}>{busyTaskId === task.id ? "Submitting..." : "Submit actual total"}</button>
+                            </form>
+                          )}
+                        </div>
+                      )}
+                    </section>
                     {task.description && <p className="kitchen-task-description">{task.description}</p>}
-                    <section className="kitchen-supplies"><h3><Utensils size={15} /> Ingredient supply list</h3><ul>{task.ingredients.map((ingredient) => <li key={ingredient}>{ingredient}</li>)}</ul></section>
                     <details className="kitchen-recipe-details"><summary>Preparation instructions</summary><p>{task.instructions}</p></details>
                     {task.notes && <div className="kitchen-task-notes"><b>Admin notes</b><p>{task.notes}</p></div>}
                     <div className="kitchen-task-actions">
-                      {action && <button className="admin-primary-button" disabled={busyTaskId === task.id} onClick={() => void updateStatus(task, action.status)}>{busyTaskId === task.id ? "Updating..." : action.label}</button>}
+                      {action && <button className="admin-primary-button" disabled={busyTaskId === task.id || (action.status === "ready" && task.mealIndex !== null && task.mealIndex !== undefined && !["submitted", "confirmed"].includes(task.costingStatus))} onClick={() => void updateStatus(task, action.status)}>{busyTaskId === task.id ? "Updating..." : action.label}</button>}
                       {["sent", "accepted", "preparing"].includes(task.status) && <button className="admin-secondary-button" disabled={busyTaskId === task.id} onClick={() => void updateStatus(task, "cancelled")}>Decline</button>}
                     </div>
                   </article>

@@ -6,6 +6,7 @@ const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const bookingRoutes = require("./routes/bookings");
 const foodRoutes = require("./routes/foods");
+const hotelRoutes = require("./routes/hotels");
 const ingredientRoutes = require("./routes/ingredients");
 const kitchenRoutes = require("./routes/kitchen");
 
@@ -46,6 +47,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/kitchen", kitchenRoutes);
 app.use("/api/foods", foodRoutes);
+app.use("/api/hotels", hotelRoutes);
 app.use("/api/ingredients", ingredientRoutes);
 app.use("/api/bookings", bookingRoutes);
 

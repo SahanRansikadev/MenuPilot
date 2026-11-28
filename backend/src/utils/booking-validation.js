@@ -22,6 +22,7 @@ function parseBookingPayload(payload) {
   }
 
   const {
+    hotelId,
     date,
     guestCount,
     childrenCount,
@@ -34,6 +35,9 @@ function parseBookingPayload(payload) {
     notes = "",
   } = payload;
 
+  if (typeof hotelId !== "string" || !objectIdPattern.test(hotelId)) {
+    return { error: "Choose a hotel branch for this booking." };
+  }
   if (!isValidDate(date)) {
     return { error: "Choose a valid booking date." };
   }
@@ -99,9 +103,18 @@ function parseBookingPayload(payload) {
     if (!Array.isArray(meal.foodIds) || meal.foodIds.length === 0 || meal.foodIds.length > 20) {
       return { error: "Choose at least one food for every meal." };
     }
+    const dessertIds = meal.dessertIds === undefined ? [] : meal.dessertIds;
+    if (!Array.isArray(dessertIds) || dessertIds.length > 20 || meal.foodIds.length + dessertIds.length > 20) {
+      return { error: "Choose no more than 20 foods and desserts for one meal." };
+    }
 
     const foodIds = meal.foodIds.map((foodId) => String(foodId));
-    if (foodIds.some((foodId) => !objectIdPattern.test(foodId)) || new Set(foodIds).size !== foodIds.length) {
+    const parsedDessertIds = dessertIds.map((foodId) => String(foodId));
+    const allFoodIds = [...foodIds, ...parsedDessertIds];
+    if (
+      allFoodIds.some((foodId) => !objectIdPattern.test(foodId)) ||
+      new Set(allFoodIds).size !== allFoodIds.length
+    ) {
       return { error: "Meal food selections are invalid." };
     }
 
@@ -113,11 +126,13 @@ function parseBookingPayload(payload) {
       hasIngredients,
       ingredientIds: parsedIngredientIds,
       foodIds,
+      dessertIds: parsedDessertIds,
     });
   }
 
   return {
     value: {
+      hotelId,
       date,
       guestCount,
       childrenCount,
