@@ -3,15 +3,18 @@ const Booking = require("../models/Booking");
 const Food = require("../models/Food");
 const Ingredient = require("../models/Ingredient");
 const requireAuth = require("../middleware/require-auth");
+const requireRole = require("../middleware/require-role");
 const parseBookingPayload = require("../utils/booking-validation");
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(requireRole("guest"));
 
 function serializeBooking(booking) {
   return {
     id: booking._id.toString(),
     date: new Date(booking.date).toISOString().slice(0, 10),
+    status: booking.status || "pending",
     guestCount: booking.guestCount,
     childrenCount: booking.childrenCount,
     driverCount: booking.driverCount,

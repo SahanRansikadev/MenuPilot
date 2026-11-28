@@ -18,12 +18,13 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: "Session expired. Please sign in again." });
     }
 
-    const user = await User.findById(session.userId).select("_id").lean();
+    const user = await User.findById(session.userId).select("_id role").lean();
     if (!user) {
       return res.status(401).json({ error: "Account not found. Please sign in again." });
     }
 
     req.userId = session.userId;
+    req.userRole = user.role || "guest";
     return next();
   } catch (error) {
     console.error("API session lookup failed:", error);

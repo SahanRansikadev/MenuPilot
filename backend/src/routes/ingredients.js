@@ -1,9 +1,10 @@
 const express = require("express");
 const Ingredient = require("../models/Ingredient");
 const requireAuth = require("../middleware/require-auth");
+const requireRole = require("../middleware/require-role");
 
 const router = express.Router();
-router.use(requireAuth);
+router.use(requireAuth, requireRole("guest"));
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

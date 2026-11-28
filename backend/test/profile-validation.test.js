@@ -37,4 +37,16 @@ test("allows new accounts to keep an unset country until their profile is comple
   });
 
   await assert.doesNotReject(user.validate());
+  assert.equal(user.role, "guest");
+});
+
+test("rejects account roles outside the supported permission levels", async () => {
+  const user = new User({
+    name: "Alex Morgan",
+    email: "alex@example.com",
+    passwordHash: "hashed-password",
+    role: "superuser",
+  });
+
+  await assert.rejects(user.validate(), /role/);
 });

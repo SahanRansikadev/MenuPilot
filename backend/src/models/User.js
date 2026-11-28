@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema(
       maxlength: 254,
     },
     passwordHash: { type: String, required: true, select: false },
+    role: { type: String, enum: ["admin", "kitchenTeam", "guest"], default: "guest", index: true },
     phone: { type: String, trim: true, maxlength: 16, default: "" },
     guestCount: { type: Number, min: 1, max: 1000, default: 1 },
     childrenCount: { type: Number, min: 0, max: 1000, default: 0 },

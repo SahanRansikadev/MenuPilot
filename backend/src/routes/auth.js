@@ -57,6 +57,7 @@ async function createSession(res, user, status) {
       id: user._id.toString(),
       name: user.name,
       email: user.email,
+      role: user.role || "guest",
     },
   });
 }
@@ -79,7 +80,7 @@ router.get("/me", async (req, res) => {
     }
 
     const user = await User.findById(session.userId)
-      .select("name email phone guestCount childrenCount countryCode feedback")
+      .select("name email role phone guestCount childrenCount countryCode feedback")
       .lean();
     if (!user) {
       await Session.deleteOne({ _id: session._id });
@@ -92,6 +93,7 @@ router.get("/me", async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
+        role: user.role || "guest",
         phone: user.phone || "",
         guestCount: user.guestCount || 1,
         childrenCount: user.childrenCount || 0,
@@ -173,7 +175,7 @@ router.post("/signup", authAttemptsLimit, async (req, res) => {
       passwordHash: await bcrypt.hash(payload.password, 12),
     });
 
-    const savedUser = await User.findById(createdUser._id).select("name email").lean();
+    const savedUser = await User.findById(createdUser._id).select("name email role").lean();
     if (!savedUser || savedUser.email !== payload.email) {
       throw new Error("Unable to verify newly created account.");
     }
