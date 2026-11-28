@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const app = require("../src/application");
 const Booking = require("../src/models/Booking");
 const Food = require("../src/models/Food");
+const Ingredient = require("../src/models/Ingredient");
 const Session = require("../src/models/Session");
 const User = require("../src/models/User");
 
@@ -12,10 +13,13 @@ test("authenticated guests can save a booking and retrieve only their own bookin
   const originalSessionFindOne = Session.findOne;
   const originalUserFindById = User.findById;
   const originalFoodFind = Food.find;
+  const originalIngredientFind = Ingredient.find;
   const originalBookingCreate = Booking.create;
   const originalBookingFind = Booking.find;
   const userId = new mongoose.Types.ObjectId();
   const foodId = new mongoose.Types.ObjectId("64b000000000000000000001");
+  const secondFoodId = new mongoose.Types.ObjectId("64b000000000000000000002");
+  const ingredientId = new mongoose.Types.ObjectId("64b000000000000000000003");
   let savedBooking;
   let queriedUserId;
 
@@ -28,10 +32,20 @@ test("authenticated guests can save a booking and retrieve only their own bookin
     lean: async () => ({ _id: userId }),
   });
   Food.find = (query) => {
-    assert.deepEqual(query._id.$in, [foodId.toString()]);
+    assert.deepEqual(query._id.$in, [foodId.toString(), secondFoodId.toString()]);
     return {
       select() { return this; },
-      lean: async () => [{ _id: foodId, name: "String hoppers" }],
+      lean: async () => [
+        { _id: foodId, name: "String hoppers" },
+        { _id: secondFoodId, name: "Rice and curry" },
+      ],
+    };
+  };
+  Ingredient.find = (query) => {
+    assert.deepEqual(query._id.$in, [ingredientId.toString()]);
+    return {
+      select() { return this; },
+      lean: async () => [{ _id: ingredientId, name: "Coconut milk" }],
     };
   };
   Booking.create = async (booking) => {
@@ -53,6 +67,7 @@ test("authenticated guests can save a booking and retrieve only their own bookin
     Session.findOne = originalSessionFindOne;
     User.findById = originalUserFindById;
     Food.find = originalFoodFind;
+    Ingredient.find = originalIngredientFind;
     Booking.create = originalBookingCreate;
     Booking.find = originalBookingFind;
   });
@@ -83,7 +98,19 @@ test("authenticated guests can save a booking and retrieve only their own bookin
       date: "2026-12-05",
       guestCount: 2,
       childrenCount: 0,
-      meals: [{ type: "Breakfast", time: "08:00", foodIds: [foodId.toString()] }],
+      meals: [{
+        type: "Breakfast",
+        time: "08:00",
+        hasIngredients: true,
+        ingredientIds: [ingredientId.toString()],
+        foodIds: [foodId.toString()],
+      }, {
+        type: "Lunch",
+        time: "12:30",
+        hasIngredients: false,
+        ingredientIds: [],
+        foodIds: [secondFoodId.toString()],
+      }],
       isVegetarian: false,
       hasAllergies: false,
       allergyCount: 0,
@@ -94,6 +121,10 @@ test("authenticated guests can save a booking and retrieve only their own bookin
   const created = await createResponse.json();
   assert.equal(created.booking.date, "2026-12-05");
   assert.equal(created.booking.meals[0].foods[0].name, "String hoppers");
+  assert.equal(created.booking.meals[0].hasIngredients, true);
+  assert.deepEqual(created.booking.meals[0].ingredients, [{ id: ingredientId.toString(), name: "Coconut milk" }]);
+  assert.equal(created.booking.meals[1].hasIngredients, false);
+  assert.deepEqual(created.booking.meals[1].ingredients, []);
   assert.equal(savedBooking.userId.toString(), userId.toString());
 
   const listResponse = await fetch(baseUrl, { headers });

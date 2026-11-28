@@ -67,6 +67,11 @@ type CatalogFood = {
   name: string;
 };
 
+type CatalogIngredient = {
+  id: string;
+  name: string;
+};
+
 type FoodSearchCategory = "food" | "dessert";
 
 type SavedBooking = {
@@ -105,6 +110,14 @@ export default function GuestDashboard() {
   const [isVegetarian, setIsVegetarian] = useState<boolean | null>(null);
   const [hasAllergies, setHasAllergies] = useState<boolean | null>(null);
   const [allergyCount, setAllergyCount] = useState("1");
+  const [hasIngredientsByMeal, setHasIngredientsByMeal] = useState<Record<string, boolean | null>>({});
+  const [ingredientQueries, setIngredientQueries] = useState<Record<string, string>>({});
+  const [ingredientResults, setIngredientResults] = useState<Record<string, CatalogIngredient[]>>({});
+  const [ingredientsByMeal, setIngredientsByMeal] = useState<Record<string, CatalogIngredient[]>>({});
+  const [activeIngredientSearchMeal, setActiveIngredientSearchMeal] = useState<string | null>(null);
+  const [ingredientSearchLoading, setIngredientSearchLoading] = useState<Record<string, boolean>>({});
+  const [ingredientSearchErrors, setIngredientSearchErrors] = useState<Record<string, string>>({});
+  const [addingIngredientForMeal, setAddingIngredientForMeal] = useState<string | null>(null);
   const [bookingNotes, setBookingNotes] = useState("");
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [savedBooking, setSavedBooking] = useState<SavedBooking | null>(null);
@@ -196,6 +209,58 @@ export default function GuestDashboard() {
     };
   }, [activeFoodSearchMeal, foodQueries, plannerOpen, plannerStep, router]);
 
+  useEffect(() => {
+    const meal = activeIngredientSearchMeal;
+    if (
+      plannerStep !== "foods" ||
+      !plannerOpen ||
+      !meal ||
+      hasIngredientsByMeal[meal] !== true
+    ) {
+      return;
+    }
+
+    let active = true;
+    const query = ingredientQueries[meal] || "";
+    const timer = setTimeout(async () => {
+      setIngredientSearchLoading((current) => ({ ...current, [meal]: true }));
+      setIngredientSearchErrors((current) => ({ ...current, [meal]: "" }));
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/ingredients?search=${encodeURIComponent(query.trim())}`,
+          { credentials: "include" },
+        );
+        const result: { ingredients?: CatalogIngredient[]; error?: string } = await response.json();
+
+        if (response.status === 401) {
+          router.replace("/");
+          return;
+        }
+        if (!response.ok || !result.ingredients) {
+          throw new Error(result.error || "Unable to search ingredients.");
+        }
+        if (active) {
+          setIngredientResults((current) => ({ ...current, [meal]: result.ingredients || [] }));
+        }
+      } catch (error) {
+        if (active) {
+          setIngredientSearchErrors((current) => ({
+            ...current,
+            [meal]: error instanceof Error ? error.message : "Unable to search ingredients.",
+          }));
+        }
+      } finally {
+        if (active) setIngredientSearchLoading((current) => ({ ...current, [meal]: false }));
+      }
+    }, query.trim() ? 250 : 0);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [activeIngredientSearchMeal, hasIngredientsByMeal, ingredientQueries, plannerOpen, plannerStep, router]);
+
   async function handleSignOut() {
     setSigningOut(true);
     setAuthError("");
@@ -230,10 +295,19 @@ export default function GuestDashboard() {
     setFoodSearchLoading({});
     setFoodSearchErrors({});
     setFoodsByMeal({});
+    setDessertsByMeal({});
     setAddingFoodForMeal(null);
     setIsVegetarian(null);
     setHasAllergies(null);
     setAllergyCount("1");
+    setHasIngredientsByMeal({});
+    setIngredientQueries({});
+    setIngredientResults({});
+    setIngredientsByMeal({});
+    setActiveIngredientSearchMeal(null);
+    setIngredientSearchLoading({});
+    setIngredientSearchErrors({});
+    setAddingIngredientForMeal(null);
     setBookingNotes("");
     setBookingSubmitting(false);
     setSavedBooking(null);
@@ -302,6 +376,37 @@ export default function GuestDashboard() {
         delete next[`dessert:${option}`];
         return next;
       });
+      setHasIngredientsByMeal((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setIngredientQueries((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setIngredientResults((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setIngredientsByMeal((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setIngredientSearchLoading((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      setIngredientSearchErrors((current) => {
+        const next = { ...current };
+        delete next[option];
+        return next;
+      });
+      if (activeIngredientSearchMeal === option) setActiveIngredientSearchMeal(null);
       if (activeFoodSearchMeal === option || activeFoodSearchMeal === `dessert:${option}`) {
         setActiveFoodSearchMeal(null);
       }
@@ -372,6 +477,223 @@ export default function GuestDashboard() {
     }
   }
 
+  function selectIngredient(meal: string, ingredient: CatalogIngredient) {
+    const selected = ingredientsByMeal[meal] || [];
+    if (selected.some((item) => item.id === ingredient.id)) return;
+    if (selected.length >= 50) {
+      setIngredientSearchErrors((current) => ({ ...current, [meal]: "Choose no more than 50 ingredients for one meal." }));
+      return;
+    }
+    setIngredientsByMeal((current) => {
+      const currentMealIngredients = current[meal] || [];
+      return currentMealIngredients.some((item) => item.id === ingredient.id)
+        ? current
+        : { ...current, [meal]: [...currentMealIngredients, ingredient] };
+    });
+    setIngredientQueries((current) => ({ ...current, [meal]: "" }));
+    setIngredientResults((current) => ({ ...current, [meal]: [] }));
+    setIngredientSearchLoading((current) => ({ ...current, [meal]: false }));
+    setActiveIngredientSearchMeal(null);
+    setIngredientSearchErrors((current) => ({ ...current, [meal]: "" }));
+  }
+
+  async function addNewIngredient(meal: string) {
+    const name = (ingredientQueries[meal] || "").trim();
+    if (!name) return;
+    if ((ingredientsByMeal[meal] || []).length >= 50) {
+      setIngredientSearchErrors((current) => ({ ...current, [meal]: "Choose no more than 50 ingredients for one meal." }));
+      return;
+    }
+
+    setAddingIngredientForMeal(meal);
+    setIngredientSearchErrors((current) => ({ ...current, [meal]: "" }));
+    try {
+      const response = await fetch(`${API_BASE_URL}/ingredients`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const result: { ingredient?: CatalogIngredient; error?: string } = await response.json();
+
+      if (response.status === 401) {
+        router.replace("/");
+        return;
+      }
+      if (!response.ok || !result.ingredient) {
+        throw new Error(result.error || "Unable to add this ingredient.");
+      }
+      selectIngredient(meal, result.ingredient);
+    } catch (error) {
+      setIngredientSearchErrors((current) => ({
+        ...current,
+        [meal]: error instanceof Error ? error.message : "Unable to add this ingredient.",
+      }));
+    } finally {
+      setAddingIngredientForMeal(null);
+    }
+  }
+
+  function renderIngredientSection(meal: string) {
+    const hasIngredients = hasIngredientsByMeal[meal];
+    const selected = ingredientsByMeal[meal] || [];
+    const query = ingredientQueries[meal] || "";
+    const results = ingredientResults[meal] || [];
+    const exactMatch = results.some(
+      (ingredient) => ingredient.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase(),
+    );
+    const mealLabel = meal === "Other" ? otherMealName : meal;
+
+    return (
+      <>
+        <fieldset className="planner-preference-fieldset planner-ingredients-choice">
+          <legend>Are you bringing ingredients for {mealLabel}?</legend>
+          <label>
+            <input
+              type="radio"
+              name={`bringingIngredients-${meal}`}
+              required
+              disabled={addingIngredientForMeal === meal}
+              checked={hasIngredients === true}
+              onChange={() => {
+                setHasIngredientsByMeal((current) => ({ ...current, [meal]: true }));
+                setIngredientSearchErrors((current) => ({ ...current, [meal]: "" }));
+              }}
+            />
+            Yes
+          </label>
+          <label>
+            <input
+              type="radio"
+              name={`bringingIngredients-${meal}`}
+              required
+              disabled={addingIngredientForMeal === meal}
+              checked={hasIngredients === false}
+              onChange={() => {
+                setHasIngredientsByMeal((current) => ({ ...current, [meal]: false }));
+                setIngredientsByMeal((current) => ({ ...current, [meal]: [] }));
+                setIngredientQueries((current) => ({ ...current, [meal]: "" }));
+                setIngredientResults((current) => ({ ...current, [meal]: [] }));
+                setIngredientSearchLoading((current) => ({ ...current, [meal]: false }));
+                setIngredientSearchErrors((current) => ({ ...current, [meal]: "" }));
+                if (activeIngredientSearchMeal === meal) setActiveIngredientSearchMeal(null);
+              }}
+            />
+            No
+          </label>
+        </fieldset>
+
+        {hasIngredients === true && (
+          <section className="planner-ingredients-section" aria-label={`Ingredients for ${mealLabel}`}>
+            <div className="planner-ingredients-heading">
+              <b>Add ingredients for {mealLabel}</b>
+              <p>Search the ingredient catalog or add a new ingredient.</p>
+            </div>
+            {selected.length > 0 && (
+              <div className="planner-selected-foods">
+                {selected.map((ingredient) => (
+                  <span className="planner-food-chip" key={ingredient.id}>
+                    {ingredient.name}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${ingredient.name} from ${mealLabel}`}
+                      onClick={() => setIngredientsByMeal((current) => ({
+                        ...current,
+                        [meal]: (current[meal] || []).filter((item) => item.id !== ingredient.id),
+                      }))}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <label className="planner-food-search">
+              Search ingredients
+              <input
+                type="search"
+                maxLength={100}
+                value={query}
+                onFocus={() => setActiveIngredientSearchMeal(meal)}
+                onChange={(event) => {
+                  setIngredientQueries((current) => ({ ...current, [meal]: event.target.value }));
+                  setActiveIngredientSearchMeal(meal);
+                  setIngredientResults((current) => ({ ...current, [meal]: [] }));
+                  setIngredientSearchErrors((current) => ({ ...current, [meal]: "" }));
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  if (exactMatch) {
+                    const exactIngredient = results.find(
+                      (ingredient) => ingredient.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase(),
+                    );
+                    if (exactIngredient) selectIngredient(meal, exactIngredient);
+                  } else if (query.trim()) {
+                    void addNewIngredient(meal);
+                  }
+                }}
+                placeholder={`Search or add an ingredient for ${mealLabel.toLocaleLowerCase()}...`}
+                aria-label={`Search ingredients for ${mealLabel}`}
+              />
+            </label>
+            {ingredientSearchLoading[meal] && (
+              <small className="planner-food-status">Searching ingredients...</small>
+            )}
+            {ingredientSearchErrors[meal] && (
+              <p className="planner-form-error" role="alert">{ingredientSearchErrors[meal]}</p>
+            )}
+            {activeIngredientSearchMeal === meal &&
+              !ingredientSearchLoading[meal] &&
+              !ingredientSearchErrors[meal] &&
+              results.length === 0 && (
+                <small className="planner-food-status">
+                  {query.trim()
+                    ? "No matching ingredients yet. Add it to the catalog."
+                    : "No ingredients in the catalog yet. Search for one to add it."}
+                </small>
+              )}
+            {activeIngredientSearchMeal === meal &&
+              !ingredientSearchLoading[meal] &&
+              results.length > 0 && (
+                <div className="planner-food-results" aria-label={`Available ingredients for ${mealLabel}`}>
+                  {results.map((ingredient) => {
+                    const alreadySelected = selected.some((item) => item.id === ingredient.id);
+                    return (
+                      <button
+                        type="button"
+                        key={ingredient.id}
+                        disabled={alreadySelected}
+                        onClick={() => selectIngredient(meal, ingredient)}
+                      >
+                        {ingredient.name}{alreadySelected ? " · Added" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            {activeIngredientSearchMeal === meal &&
+              query.trim() &&
+              !ingredientSearchLoading[meal] &&
+              !ingredientSearchErrors[meal] &&
+              !exactMatch && (
+                <button
+                  type="button"
+                  className="planner-add-food"
+                  disabled={addingIngredientForMeal === meal}
+                  onClick={() => void addNewIngredient(meal)}
+                >
+                  {addingIngredientForMeal === meal
+                    ? "Adding ingredient..."
+                    : `Add "${query.trim()}" and select`}
+                </button>
+              )}
+          </section>
+        )}
+      </>
+    );
+  }
+
   function handleMealSelectionNext(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPlannerError("");
@@ -407,6 +729,14 @@ export default function GuestDashboard() {
       setPlannerError("Choose the vegetarian and allergy options.");
       return;
     }
+    if (selectedMeals.some((meal) => hasIngredientsByMeal[meal] === undefined || hasIngredientsByMeal[meal] === null)) {
+      setPlannerError("Choose whether you are bringing ingredients for each meal.");
+      return;
+    }
+    if (selectedMeals.some((meal) => hasIngredientsByMeal[meal] && (ingredientsByMeal[meal] || []).length === 0)) {
+      setPlannerError("Add at least one ingredient for each meal marked Yes.");
+      return;
+    }
     if (hasAllergies && (Number(allergyCount) < 1 || Number(allergyCount) > Number(guestDateForm.guestCount))) {
       setPlannerError("Enter an allergy count between one and the guest count.");
       return;
@@ -428,6 +758,8 @@ export default function GuestDashboard() {
             type,
             ...(type === "Other" ? { name: otherMealName.trim() } : {}),
             time: selectedMealTimes[type],
+            hasIngredients: hasIngredientsByMeal[type] === true,
+            ingredientIds: (ingredientsByMeal[type] || []).map((ingredient) => ingredient.id),
             foodIds: [...(foodsByMeal[type] || []), ...(dessertsByMeal[type] || [])].map((food) => food.id),
           })),
           isVegetarian,
@@ -999,6 +1331,7 @@ export default function GuestDashboard() {
                           <b>Desserts</b><span>Optional</span>
                         </div>
                         {renderFoodSearch(meal, "dessert")}
+                        {renderIngredientSection(meal)}
                       </section>
                     );
                   })}
@@ -1043,9 +1376,9 @@ export default function GuestDashboard() {
 
                 {plannerError && <p className="planner-form-error" role="alert">{plannerError}</p>}
                 <div className="planner-drawer-actions">
-                  <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)} disabled={bookingSubmitting || addingFoodForMeal !== null}>Cancel</button>
-                  <button type="button" className="planner-back-button" onClick={() => { setPlannerError(""); setPlannerStep("meals"); }} disabled={bookingSubmitting || addingFoodForMeal !== null}>Back</button>
-                  <button type="submit" className="planner-primary-button" disabled={bookingSubmitting || addingFoodForMeal !== null}>
+                  <button type="button" className="planner-secondary-button" onClick={() => setPlannerOpen(false)} disabled={bookingSubmitting || addingFoodForMeal !== null || addingIngredientForMeal !== null}>Cancel</button>
+                  <button type="button" className="planner-back-button" onClick={() => { setPlannerError(""); setPlannerStep("meals"); }} disabled={bookingSubmitting || addingFoodForMeal !== null || addingIngredientForMeal !== null}>Back</button>
+                  <button type="submit" className="planner-primary-button" disabled={bookingSubmitting || addingFoodForMeal !== null || addingIngredientForMeal !== null}>
                     {bookingSubmitting ? "Saving..." : "Confirm booking"}
                   </button>
                 </div>

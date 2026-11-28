@@ -1,5 +1,13 @@
 const mongoose = require("mongoose");
 
+const ingredientSchema = new mongoose.Schema(
+  {
+    ingredientId: { type: mongoose.Schema.Types.ObjectId, ref: "Ingredient", required: true },
+    name: { type: String, required: true, trim: true, maxlength: 100 },
+  },
+  { _id: false },
+);
+
 const mealSchema = new mongoose.Schema(
   {
     type: {
@@ -9,6 +17,8 @@ const mealSchema = new mongoose.Schema(
     },
     name: { type: String, trim: true, maxlength: 100 },
     time: { type: String, required: true },
+    hasIngredients: { type: Boolean, required: true, default: false },
+    ingredients: { type: [ingredientSchema], default: [] },
     foods: [
       {
         foodId: { type: mongoose.Schema.Types.ObjectId, ref: "Food", required: true },

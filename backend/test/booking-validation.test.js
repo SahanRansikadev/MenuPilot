@@ -41,12 +41,16 @@ test("parses a complete booking while retaining selected meal foods and times", 
       {
         type: "Breakfast",
         time: "08:30",
+        hasIngredients: false,
+        ingredientIds: [],
         foodIds: ["64b000000000000000000001"],
       },
       {
         type: "Other",
         name: "Birthday brunch",
         time: "11:00",
+        hasIngredients: false,
+        ingredientIds: [],
         foodIds: ["64b000000000000000000002"],
       },
     ],
@@ -94,6 +98,44 @@ test("rejects a non-text name for an other meal without throwing", () => {
   assert.match(parsed.error, /name for the other meal/);
 });
 
+test("requires valid ingredient selections when the guest is bringing ingredients", () => {
+  const ingredientId = "64b000000000000000000003";
+  const parsed = parseBookingPayload({
+    ...validPayload,
+    meals: [
+      { ...validPayload.meals[0], hasIngredients: true, ingredientIds: [ingredientId] },
+      { ...validPayload.meals[1], hasIngredients: false, ingredientIds: [] },
+    ],
+  });
+
+  assert.equal(parsed.error, undefined);
+  assert.equal(parsed.value.meals[0].hasIngredients, true);
+  assert.deepEqual(parsed.value.meals[0].ingredientIds, [ingredientId]);
+  assert.equal(parsed.value.meals[1].hasIngredients, false);
+  assert.deepEqual(parsed.value.meals[1].ingredientIds, []);
+  assert.match(
+    parseBookingPayload({
+      ...validPayload,
+      meals: [{ ...validPayload.meals[0], hasIngredients: true, ingredientIds: [] }],
+    }).error,
+    /at least one ingredient/,
+  );
+  assert.match(
+    parseBookingPayload({
+      ...validPayload,
+      meals: [{ ...validPayload.meals[0], hasIngredients: false, ingredientIds: [ingredientId] }],
+    }).error,
+    /unless you are bringing them/,
+  );
+  assert.match(
+    parseBookingPayload({
+      ...validPayload,
+      meals: [{ ...validPayload.meals[0], hasIngredients: true, ingredientIds: [ingredientId, ingredientId] }],
+    }).error,
+    /invalid/,
+  );
+});
+
 test("normalizes omitted optional counts and clears allergy count when allergies are absent", () => {
   const parsed = parseBookingPayload({
     ...validPayload,
@@ -108,5 +150,7 @@ test("normalizes omitted optional counts and clears allergy count when allergies
   assert.equal(parsed.value.driverCount, 0);
   assert.equal(parsed.value.guideCount, 0);
   assert.equal(parsed.value.allergyCount, 0);
+  assert.equal(parsed.value.meals[0].hasIngredients, false);
+  assert.deepEqual(parsed.value.meals[0].ingredientIds, []);
   assert.equal(parsed.value.notes, "");
 });
