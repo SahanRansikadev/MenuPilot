@@ -56,9 +56,9 @@ const pageSize = 5;
 const dashboardLinks = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Guests", href: "/dashboard/guests", Icon: Users },
-  { label: "Bookings", href: "/dashboard#upcoming", Icon: CalendarDays },
-  { label: "Meal planner", href: "/dashboard#meal-plan", Icon: Utensils },
-  { label: "Recent activity", href: "/dashboard#activity", Icon: ClipboardList },
+  { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
+  { label: "Meal planner", href: "/dashboard/meal-planner", Icon: Utensils },
+  { label: "Recent activity", href: "/dashboard/recent-activity", Icon: ClipboardList },
 ];
 
 export default function GuestManagementPage() {
@@ -113,6 +113,7 @@ export default function GuestManagementPage() {
             <Link
               key={label}
               className={label === "Guests" ? "active" : ""}
+              aria-current={label === "Guests" ? "page" : undefined}
               href={href}
               onClick={() => setSidebarOpen(false)}
             >

@@ -73,9 +73,9 @@ const meals = [
 const dashboardLinks = [
   { label: "Overview", href: "/dashboard", Icon: LayoutDashboard },
   { label: "Guests", href: "/dashboard/guests", Icon: Users },
-  { label: "Bookings", href: "/dashboard#upcoming", Icon: CalendarDays },
-  { label: "Meal planner", href: "/dashboard#meal-plan", Icon: Utensils },
-  { label: "Recent activity", href: "/dashboard#activity", Icon: ClipboardList },
+  { label: "My bookings", href: "/dashboard/bookings", Icon: CalendarDays },
+  { label: "Meal planner", href: "/dashboard/meal-planner", Icon: Utensils },
+  { label: "Recent activity", href: "/dashboard/recent-activity", Icon: ClipboardList },
 ];
 
 function formatDate(value: string) {
@@ -162,7 +162,7 @@ export default function NewGuestBookingPage() {
         <div className="sidebar-label">WORKSPACE</div>
         <nav className="dashboard-nav" aria-label="Dashboard navigation">
           {dashboardLinks.map(({ label, href, Icon }) => (
-            <Link key={label} className={label === "Guests" ? "active" : ""} href={href} onClick={() => setSidebarOpen(false)}>
+            <Link key={label} className={label === "Guests" ? "active" : ""} aria-current={label === "Guests" ? "page" : undefined} href={href} onClick={() => setSidebarOpen(false)}>
               <Icon size={18} /><span>{label}</span>
             </Link>
           ))}
